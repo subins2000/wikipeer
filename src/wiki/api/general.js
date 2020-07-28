@@ -1,6 +1,7 @@
 import axios from "axios";
+import p2wiki from "../p2wiki";
 
-function fetchFeed(language) {
+function httpFetchFeed(language) {
   const today = new Date();
   const year = today.getFullYear();
   const month = ("0" + (today.getMonth() + 1)).slice(-2);
@@ -8,6 +9,11 @@ function fetchFeed(language) {
 
   const api = `https://${language}.wikipedia.org/api/rest_v1/feed/featured/${year}/${month}/${date}`;
   return axios.get(api).then(response => response.data);
+}
+
+// fetch feed from p2wiki
+function fetchFeed(language) {
+  return p2wiki.getFeed(language);
 }
 
 function wikiSearch(language, query) {
@@ -26,6 +32,7 @@ function html2wikitext(language, html) {
 
 export default {
   fetchFeed,
+  httpFetchFeed,
   wikiSearch,
   html2wikitext
 };
