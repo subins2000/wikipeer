@@ -1,6 +1,6 @@
+image: node:latest
 
 pages: # the job must be named pages
-  image: node:latest
   stage: deploy
   script:
     - npm ci
