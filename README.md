@@ -1,76 +1,40 @@
-This is a [Vuejs](https://vuejs.org) powered modern, single page, progressive, offline capable web application for Wikipedia. Code named as Wikivue(pronounced /wɪkɪ vjuː/, like wiki-view).
+# Wikipeer
 
-**Try**: [wikipedia.thottingal.in](https://wikipedia.thottingal.in)
+Decentralized P2P proxy to access Wikipedia using WebTorrent.
 
-Also available in dat protocol:  dat://25689f3a757853a511474d38f0a6d6be2cd2b0cb161686d75fda5c1619137921 or [wikipedia.hashbase.io](https://wikipedia.hashbase.io)
+can be also called :
+* Access Wikipedia over WebRTC
+* Proxy over WebRTC
 
-## Features
+## Architecture
 
-* Fully client side application using wikipedia web apis.
-* [Progressive web application(PWA)](https://en.wikipedia.org/wiki/Progressive_web_applications). This application is installable in desktops and mobiles and use like a native application. It can also be used directly from a browser.
-* Offline support - With the help of service workers, the application even works when there is no internet, provided, the content is previously viewed.
-* [Single page application](https://en.wikipedia.org/wiki/Single-page_application) - page does not reload when exploing wiki articles, presenting an immersed reading experience.
-* Uses modern UI framwork [Vuetify](https://vuetifyjs.com).  Adapts to all kind of screen sizes
-* Presents an optimized reading experience with good typography and optimum page layout
-* Multilingual by default - All language editions are in single app. Using language selector user can select the language edition.
-* Minimal network usage.
+Terms used :
 
-## Why
+* Client -> A user that can't access Wikipedia by HTTP because it's blocked.
+* Proxy -> A user that can access Wikipedia by HTTP.
+* Compile (verb) -> Collect the text, images, media of a Wikipedia page and make a torrent.
+* Seed (verb) -> Same as the seeding in bittorrent.
+* Seed Hash -> Info Hash of torrent made by compiling the homepage.
+* Share (verb) -> Listens for connection & communicate via P2PT by a special ID.
 
-The user interface of Wikipedia evolved [very slowly](https://www.versionmuseum.com/history-of/wikipedia-website). While the web technology
-moved very fast and a new generation of users started their digital life in it, the current interface of Wikipedia is not pleasent or attractive.
+### P2PT
 
-This project attempts to build a modern fresh interface using latest web technologies, using some design principles suitable for such a content heavy website.
-This web application is built just using Wikipedia's public APIs. It does not attempt to have every feature the Wikipedia acquired over the several years, instead it just focus on basic usecases.
+Read about [P2PT here](https://github.com/subins2000/p2pt).
 
-Once done, it should also be a proof that applications with varying complexities and design principles are possible on top of Wikipedia APIs.
+The app identifier is "p2wiki". Since both clients and proxies will be in the same swarm, a proxy is identified in the intial message. Client will send "c" and proxies will send "p".
 
-Personal goal: As a Wikimedia Foundation engineer, have a modern system that allows me to quickly develop and tryout various concepts.
+TODO: Maintain a balanced list of clients and proxies.
 
-## Wishlist
+#### Consensus
 
-* Develop a modular renderless WYSIWYG editor for Wikitext. Currently an editor based on ProseMirror is being attempted.
-* Define a modular data store and versioned Article content format so that a structured wikipedia article content can live in a distributed p2p web.
+Since we can't really trust a proxy, a consensus need to be reached to make a trust. A seed hash from a proxy is trusted when different proxies return the same info hash (seed hash) for a particular Share ID.
 
+* Consensus value -> How many proxies should return the same info hash (seed hash) for it to be trusted and start downloading ?
 
-## Thanks
+### Homepage
 
-* [Vue](https://vuejs.org/) - The progressive javascript framework.
-* [Vuetify](https://vuejs.org) - UI framwork based on Vue.
-* [Vuex](https://vuex.vuejs.org/) - state management pattern + library for Vue.js applications.
-* [Vue Router](https://router.vuejs.org/) - Router for Single Page Applications.
-* [Vue-Banana-i18n](https://github.com/santhoshtr/vue-banana-i18n) - The [Banana i18n](https://github.com/wikimedia/banana-**i18n**) system(Wikipedia localization) vue bindings.
-* [banana-i18n-loader](https://github.com/santhoshtr/banana-i18n-loader) - Webpack loader for Banana i18n sytem
-* [TipTap](https://tiptap.scrumpy.io/) - WYSIWYG editor based on [ProseMirror](https://prosemirror.net/)
-* [Material Design Icons](https://materialdesignicons.com/)
-* [Webpack](https://webpack.js.org/)
+The Wikipedia homepage (feed) is identified by the present date to share. Every proxy will by default share & seed the homepage. Once a client has the homepage, they will also seed it.
 
-## Code
+* Share ID -> `p2wiki-{year}-{month}-{date}`
 
-### Development mode
-
-Clone the repo,
-
-```lang=bash
-npm install
-npm run serve
-```
-
-Open browser at the URL given in the output. Source code changes will be automatically applied.
-
-### Build for production
-
-```lang=bash
-npm install
-npm run build
-```
-
-And place the dist folder under any static web servers.
-
-## Authors
-
-* [Santhosh Thottingal](https://thottingal.in)
-
-## Note
-
-This is NOT an official Wikimedia Foundation project. Wikipedia, Wikimedia are all trademark of [Wikimedia Foundation](https://www.wikimediafoundation.org/). Wikipedia content is licensed under  the [Creative Commons Attribution-ShareAlike License](https://en.wikipedia.org/wiki/Wikipedia:Text_of_Creative_Commons_Attribution-ShareAlike_3.0_Unported_License).
+A client will communicate with multiple proxies using share ID (because it can be calculated by every client). The proxy will respond back the seed hash. If all the proxies return the same share ID (see [consensus](#consensus)), the torrent of homepage is downloaded and displayed. The clients will store this homepage torrent and start seeding it.

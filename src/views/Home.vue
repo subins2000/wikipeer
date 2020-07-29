@@ -15,7 +15,7 @@
                 <v-img
                   :src="
                     tfa.originalimage
-                      ? tfa.originalimage.source
+                      ? media[getFilename(tfa.originalimage.source)]
                       : require('@/assets/Wikipedia logo version 2.svg?lazy')
                   "
                   :lazy-src="
@@ -58,7 +58,7 @@
                 <v-img
                   :src="
                     article.originalimage
-                      ? article.originalimage.source
+                      ? media[getFilename(article.originalimage.source)]
                       : require('@/assets/Wikipedia logo version 2.svg?lazy')
                   "
                   contain
@@ -91,7 +91,8 @@ export default {
   name: "Home",
   data: () => ({
     mostreadArticles: [],
-    tfa: null
+    tfa: null,
+    media: {}
   }),
   computed: {
     ...mapState({
@@ -109,9 +110,21 @@ export default {
   methods: {
     feed() {
       generalApi.fetchFeed(this.contentLanguage).then(feed => {
+        for (const filename in feed.p2wikiMedia) {
+          const file = feed.p2wikiMedia[filename];
+
+          this.$set(this.media, filename, "");
+          file.getBlobURL((err, url) => {
+            this.$set(this.media, filename, url);
+          });
+        }
+
         this.mostreadArticles = feed.mostread.articles;
         this.tfa = feed.tfa;
       });
+    },
+    getFilename(url) {
+      return url.match(/[^/\\&?]+\.\w{3,4}(?=([?&].*$|$))/gm)[0];
     }
   }
 };
