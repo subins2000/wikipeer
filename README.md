@@ -14,8 +14,7 @@ Terms used :
 * Proxy -> A user that can access Wikipedia by HTTP.
 * Compile (verb) -> Collect the text, images, media of a Wikipedia page and make a torrent.
 * Seed (verb) -> Same as the seeding in bittorrent.
-* Seed Hash -> Info Hash of torrent made by compiling the homepage.
-* Share (verb) -> Listens for connection & communicate via P2PT by a special ID.
+* Info Hash -> Info Hash of torrent made by compiling a page.
 
 ### P2PT
 
@@ -27,14 +26,12 @@ TODO: Maintain a balanced list of clients and proxies.
 
 #### Consensus
 
-Since we can't really trust a proxy, a consensus need to be reached to make a trust. A seed hash from a proxy is trusted when different proxies return the same info hash (seed hash) for a particular Share ID.
+Since we can't really trust a proxy, a consensus need to be reached to make a trust. A info hash from a proxy is trusted when different proxies return the same info hash.
 
-* Consensus value -> How many proxies should return the same info hash (seed hash) for it to be trusted and start downloading ?
+* Consensus value -> How many proxies should return the same info hash (info hash) for it to be trusted and start downloading ?
 
 ### Homepage
 
-The Wikipedia homepage (feed) is identified by the present date to share. Every proxy will by default share & seed the homepage. Once a client has the homepage, they will also seed it.
+The Wikipedia homepage (feed) is identified by the language & the present date. Every proxy will by default seed the homepage. Once a client has the homepage, they will also seed it.
 
-* Share ID -> `p2wiki-{year}-{month}-{date}`
-
-A client will communicate with multiple proxies using share ID (because it can be calculated by every client). The proxy will respond back the seed hash. If all the proxies return the same share ID (see [consensus](#consensus)), the torrent of homepage is downloaded and displayed. The clients will store this homepage torrent and start seeding it.
+When Wikipeer is visited, the client will request proxies for the "feed". The proxies will respond back the info hash. If all the proxies return the same info hash (see [consensus](#consensus)), the torrent of homepage is downloaded and displayed. The clients will store this homepage torrent and start seeding it.
