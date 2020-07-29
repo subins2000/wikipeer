@@ -28,7 +28,7 @@ class P2Wiki {
 
     this.seedingTorrents = {};
     this.fetchedContent = {
-      feed: "",
+      feed: {},
       articles: {}
     };
 
@@ -52,9 +52,11 @@ class P2Wiki {
           msg = JSON.parse(msg);
           const type = msg.get;
 
+          console.log(msg);
+
           if (type === "feed") {
-            generalApi.httpFetchFeed(msg.lang).then(feed => {
-              console.log(feed);
+            this.makeFeedTorrent(msg.lang).then(torrent => {
+              peer.respond(torrent.infoHash);
             });
           } else if (type === "article") {
             var articleName = encodeURIComponent(msg.articleName);
@@ -104,7 +106,6 @@ class P2Wiki {
     const $this = this;
     this.p2pt.on("peerconnect", peer => {
       $this.p2pt.send(peer, "c").then(([peer, response]) => {
-        console.log(peer.id);
         if (response === "p") {
           if ($this.proxyPeers[peer.id]) {
             peer.destroy();
@@ -112,6 +113,11 @@ class P2Wiki {
             $this.proxyPeers[peer.id] = peer;
             $this.proxyPeersID.push(peer.id);
           }
+
+          debug(
+            "client: got a proxy. Total proxies now : " +
+              this.proxyPeersID.length
+          );
         }
       });
     });
@@ -160,7 +166,7 @@ class P2Wiki {
             callback(responses[hash]);
           }
         } catch (e) {
-          console.log("client: invalid response from proxy");
+          debug("client: invalid response from proxy");
         }
       });
     }
@@ -168,8 +174,8 @@ class P2Wiki {
 
   getFeed(lang) {
     return new Promise(resolve => {
-      if (this.fetchedContent.feed) {
-        resolve(this.fetchedContent.feed);
+      if (this.fetchedContent.feed[lang]) {
+        resolve(this.fetchedContent.feed[lang]);
       } else {
         this.proxySend(
           {
@@ -183,6 +189,18 @@ class P2Wiki {
             });
           }
         );
+      }
+    });
+  }
+
+  makeFeedTorrent(lang) {
+    return new Promise(resolve => {
+      if (this.fetchedContent.feed[lang]) {
+        resolve(this.fetchedContent.feed[lang]);
+      } else {
+        generalApi.httpFetchFeed(lang).then(feed => {
+          console.log(feed);
+        });
       }
     });
   }
@@ -401,5 +419,23 @@ class P2Wiki {
   }
 }
 
-const p2wiki = new P2Wiki(["http://127.0.0.1:5000/"]);
+let announceURLs = [
+  "wss://tracker.openwebtorrent.com",
+  "wss://tracker.sloppyta.co:443/announce",
+  "wss://tracker.novage.com.ua:443/announce",
+  "wss://tracker.btorrent.xyz:443/announce"
+];
+
+if (window.location.hostname === "localhost") {
+  announceURLs = ["ws://localhost:5000"];
+}
+
+const p2wiki = new P2Wiki(announceURLs);
+
+if (localStorage["proxy"]) {
+  p2wiki.startProxy();
+} else {
+  p2wiki.startClient();
+}
+
 export default p2wiki;

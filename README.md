@@ -17,6 +17,10 @@ Terms used :
 
 Read about [P2PT here](https://github.com/subins2000/p2pt).
 
+The app identifier is "p2wiki". Since both clients and proxies will be in the same swarm, a proxy is identified in the intial message. Client will send "c" and proxies will send "p".
+
+TODO: Maintain a balanced list of clients and proxies.
+
 #### Consensus
 
 Since we can't really trust a proxy, a consensus need to be reached to make a trust. A seed hash from a proxy is trusted when different proxies return the same info hash (seed hash) for a particular Share ID.
