@@ -2,6 +2,10 @@
 
 Decentralized P2P proxy to access Wikipedia using WebTorrent.
 
+can be also called :
+* Access Wikipedia over WebRTC
+* Proxy over WebRTC
+
 ## Architecture
 
 Terms used :

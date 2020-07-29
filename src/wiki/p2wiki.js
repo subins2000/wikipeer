@@ -26,7 +26,13 @@ class P2Wiki {
     this.proxyPeersID = [];
     this.curProxyPeerIndex = 0;
 
-    this.seedingTorrents = {};
+    // For proxy
+    this.seedingTorrents = {
+      feed: {},
+      articles: {}
+    };
+
+    // For client
     this.fetchedContent = {
       feed: {},
       articles: {}
@@ -56,7 +62,11 @@ class P2Wiki {
 
           if (type === "feed") {
             this.makeFeedTorrent(msg.lang).then(torrent => {
-              peer.respond(torrent.infoHash);
+              peer.respond(
+                JSON.stringify({
+                  infoHash: torrent.infoHash
+                })
+              );
             });
           } else if (type === "article") {
             var articleName = encodeURIComponent(msg.articleName);
@@ -152,6 +162,7 @@ class P2Wiki {
       const peer = this.proxyPeers[key];
 
       this.p2pt.send(peer, JSON.stringify(data)).then(([, response]) => {
+        console.log(response);
         try {
           response = JSON.parse(response);
           const hash = response.infoHash;
@@ -166,12 +177,13 @@ class P2Wiki {
             callback(responses[hash]);
           }
         } catch (e) {
-          debug("client: invalid response from proxy");
+          debug("client: invalid response from proxy. " + e);
         }
       });
     }
   }
 
+  // Promise: get feed/homepage
   getFeed(lang) {
     return new Promise(resolve => {
       if (this.fetchedContent.feed[lang]) {
@@ -183,6 +195,7 @@ class P2Wiki {
             lang
           },
           response => {
+            console.log(response);
             this.downloadTorrent(response.infoHash, article => {
               this.fetchedContent.feed = article;
               resolve(article);
@@ -193,7 +206,8 @@ class P2Wiki {
     });
   }
 
-  getMedia(filename, url) {
+  // Promise: get a File object from a URL
+  getFileFromURL(filename, url) {
     return new Promise((resolve, reject) => {
       axios({
         method: "get",
@@ -213,16 +227,89 @@ class P2Wiki {
     });
   }
 
+  // get a File object from text
+  getFileFromText(filename, text) {
+    return new window.File([text], filename, {
+      type: "text/plain"
+    });
+  }
+
+  // Make torrent of feed, resolves wih torrent object
   makeFeedTorrent(lang) {
     return new Promise(resolve => {
-      if (this.fetchedContent.feed[lang]) {
-        resolve(this.fetchedContent.feed[lang]);
+      if (this.seedingTorrents.feed[lang]) {
+        resolve(this.seedingTorrents.feed[lang]);
       } else {
+        debug(`proxy: Making feed-${lang}`);
+
         generalApi.httpFetchFeed(lang).then(feed => {
           console.log(feed);
 
+          /**
+           * The files in torrent. Will have :
+           * tfa.txt: feed.tfa JSON stringified
+           * tfaImage: Featured Article image file
+           */
+          const files = [];
+
+          // All media files
+          const media = [];
+
           // The Featured Article
-          const tfa = JSON.stringify(tfa);
+          const tfa = feed.tfa;
+          files.push(this.getFileFromText("tfa.txt", JSON.stringify(tfa)));
+          media.push(tfa.originalimage.source);
+
+          // Most Read Articles
+          const mostread = feed.mostread;
+          files.push(
+            this.getFileFromText("mostread.txt", JSON.stringify(mostread))
+          );
+
+          for (const article of mostread.articles) {
+            if (article.originalimage) media.push(article.originalimage.source);
+          }
+
+          // NOTE: Featured image, news & On This Day is not implemented in Wikivue
+
+          // Download all media
+          for (const m of media) {
+            const filename = m.match(/[^/\\&?]+\.\w{3,4}(?=([?&].*$|$))/gm)[0];
+            this.getFileFromURL(filename, m).then(file => {
+              files.push(file);
+
+              debug(
+                `proxy: Making feed-${lang} : Fetched image ${files.length -
+                  2}/${media.length}`
+              );
+
+              ifCompletedMakeTorrent();
+            });
+          }
+
+          const ifCompletedMakeTorrent = () => {
+            const neededFileCount = 2 + media.length;
+
+            if (files.length === neededFileCount) {
+              // All files downloaded, make torrent
+              this.wt.seed(
+                files,
+                {
+                  announceList: [this.announceURLs],
+                  name: "feed"
+                },
+                torrent => {
+                  this.seedingTorrents.feed[lang] = torrent;
+
+                  debug(
+                    `proxy: Started seeding feed-${lang} : ${torrent.infoHash}`
+                  );
+
+                  resolve(torrent);
+                }
+              );
+            }
+          };
         });
       }
     });
@@ -315,7 +402,7 @@ class P2Wiki {
               continue;
             }
 
-            this.getMedia(item.title, item.srcset[0].src).then(file => {
+            this.getFileFromURL(item.title, item.srcset[0].src).then(file => {
               files.push(file);
               fetched.media.push(item.title);
 
