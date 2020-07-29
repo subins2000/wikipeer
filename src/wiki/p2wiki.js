@@ -196,9 +196,32 @@ class P2Wiki {
           },
           response => {
             console.log(response);
-            this.downloadTorrent(response.infoHash, article => {
-              this.fetchedContent.feed = article;
-              resolve(article);
+            this.downloadTorrent(response.infoHash, torrent => {
+              // The response emulates the original HTTP API response
+              // "p2wiki" is prepended to new elements
+              const feed = {
+                tfa: {},
+                mostread: {},
+                p2wikiMedia: {}
+              };
+
+              // file is WebTorrent's File object
+              torrent.files.forEach(file => {
+                if (file.name === "tfa.txt") {
+                  file.getBuffer((error, buffer) => {
+                    feed.tfa = JSON.parse(buffer.toString());
+                    if (feed.mostread.articles) resolve(feed);
+                  });
+                } else if (file.name === "mostread.txt") {
+                  file.getBuffer((error, buffer) => {
+                    feed.mostread = JSON.parse(buffer.toString());
+                    if (feed.tfa.title) resolve(feed);
+                  });
+                } else {
+                  // rest is media
+                  feed.p2wikiMedia[file.name] = file;
+                }
+              });
             });
           }
         );
@@ -452,7 +475,24 @@ class P2Wiki {
 
           if (infoHash) {
             console.log("1");
-            $this.downloadTorrent(infoHash, callback);
+            $this.downloadTorrent(infoHash, torrent => {
+              var article = {
+                title: "",
+                text: null,
+                media: {}
+              };
+
+              torrent.files.forEach(file => {
+                if (file.name === "article.html") {
+                  article.title = torrent.name;
+                  article.text = file;
+                } else {
+                  article.media[file.name] = file;
+                }
+              });
+
+              callback(article);
+            });
           }
         });
     }
@@ -476,26 +516,7 @@ class P2Wiki {
     return false;
   }
 
-  downloadTorrent(infoHash, callback) {
-    var onTorrent = torrent => {
-      var article = {
-        title: "",
-        text: null,
-        media: {}
-      };
-
-      torrent.files.forEach(file => {
-        if (file.name === "article.html") {
-          article.title = torrent.name;
-          article.text = file;
-        } else {
-          article.media[file.name] = file;
-        }
-      });
-
-      callback(article);
-    };
-
+  downloadTorrent(infoHash, onTorrent) {
     if (this.wt.get(infoHash)) {
       onTorrent(this.wt.get(infoHash));
     } else {
