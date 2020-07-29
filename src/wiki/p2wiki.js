@@ -193,6 +193,26 @@ class P2Wiki {
     });
   }
 
+  getMedia(filename, url) {
+    return new Promise((resolve, reject) => {
+      axios({
+        method: "get",
+        url: url,
+        responseType: "blob"
+      })
+        .then(function(response) {
+          var file = new window.File([response.data], filename, {
+            type: response.headers["content-type"]
+          });
+
+          resolve(file);
+        })
+        .catch(error => {
+          reject(error);
+        });
+    });
+  }
+
   makeFeedTorrent(lang) {
     return new Promise(resolve => {
       if (this.fetchedContent.feed[lang]) {
@@ -200,6 +220,9 @@ class P2Wiki {
       } else {
         generalApi.httpFetchFeed(lang).then(feed => {
           console.log(feed);
+
+          // The Featured Article
+          const tfa = JSON.stringify(tfa);
         });
       }
     });
@@ -280,32 +303,6 @@ class P2Wiki {
           reject(error);
         });
 
-      var addMedia = (title, url) => {
-        axios({
-          method: "get",
-          url: url,
-          responseType: "blob"
-        })
-          .then(function(response) {
-            var filename = title;
-            var file = new window.File([response.data], filename, {
-              type: response.headers["content-type"]
-            });
-
-            files.push(file);
-            fetched.media.push(filename);
-
-            debug(
-              `Article ${articleName} : Fetched image ${fetched.media.length}/${fetched.mediaCount}`
-            );
-
-            ifCompletedMakeTorrent();
-          })
-          .catch(error => {
-            reject(error);
-          });
-      };
-
       axios
         .get(`//en.wikipedia.org/api/rest_v1/page/media-list/${articleName}`)
         .then(response => {
@@ -318,7 +315,14 @@ class P2Wiki {
               continue;
             }
 
-            addMedia(item.title, item.srcset[0].src);
+            this.getMedia(item.title, item.srcset[0].src).then(file => {
+              files.push(file);
+              fetched.media.push(item.title);
+
+              debug(
+                `Article ${articleName} : Fetched image ${fetched.media.length}/${fetched.mediaCount}`
+              );
+            });
             fetched.mediaCount++;
           }
 
