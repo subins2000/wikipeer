@@ -3,8 +3,8 @@ image: node:latest
 pages: # the job must be named pages
   stage: deploy
   script:
-    - npm ci
-    - npm run build
+    - yarn install
+    - yarn run build
     - mv public public-vue # GitLab Pages hooks on the public folder
     - mv dist public # rename the dist folder (result of npm run build)
     - find public \( -name '*.html' -o -name '*.css' -o -name '*.js' -o -name '*.woff*' \) -print0 | xargs -0 gzip -9 -kv
