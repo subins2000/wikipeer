@@ -28,13 +28,13 @@ class P2Wiki {
 
     // For proxy
     this.seedingTorrents = {
-      feed: {},
+      feed: {}, // {date: {lang: torrent}}
       articles: {}
     };
 
     // For client
     this.fetchedContent = {
-      feed: {},
+      feed: {}, // {date: {lang: torrent}}
       articles: {}
     };
 
@@ -106,6 +106,15 @@ class P2Wiki {
             ) {
               torrentInfo.torrent.destroy();
             }
+          }
+
+          // Stop feed torrents after UTC day is over
+          const feedIDs = Object.keys(this.seedingTorrents.feed).sort();
+          if (feedIDs.length > 1) {
+            for (const lang in this.seedingTorrents.feed[feedIDs[0]]) {
+              this.seedingTorrents.feed[feedIDs[0]][lang].destroy();
+            }
+            debug("Deleted previous day feed");
           }
         }, 10000);
       }
@@ -186,8 +195,13 @@ class P2Wiki {
   // Promise: get feed/homepage
   getFeed(lang) {
     return new Promise(resolve => {
-      if (this.fetchedContent.feed[lang]) {
-        resolve(this.fetchedContent.feed[lang]);
+      const feedID = this.getTodayDate();
+
+      if (
+        this.fetchedContent.feed[feedID] &&
+        this.fetchedContent.feed[feedID][lang]
+      ) {
+        resolve(this.fetchedContent.feed[feedID][lang]);
       } else {
         this.proxySend(
           {
@@ -205,17 +219,22 @@ class P2Wiki {
                 p2wikiMedia: {}
               };
 
+              const completed = () => {
+                this.fetchedContent.feed[feedID][lang] = feed;
+                resolve(feed);
+              };
+
               // file is WebTorrent's File object
               torrent.files.forEach(file => {
                 if (file.name === "tfa.txt") {
                   file.getBuffer((error, buffer) => {
                     feed.tfa = JSON.parse(buffer.toString());
-                    if (feed.mostread.articles) resolve(feed);
+                    if (feed.mostread.articles) completed();
                   });
                 } else if (file.name === "mostread.txt") {
                   file.getBuffer((error, buffer) => {
                     feed.mostread = JSON.parse(buffer.toString());
-                    if (feed.tfa.title) resolve(feed);
+                    if (feed.tfa.title) completed();
                   });
                 } else {
                   // rest is media
@@ -257,11 +276,26 @@ class P2Wiki {
     });
   }
 
+  // Get today's UTC date split by '-'
+  getTodayDate() {
+    const today = new Date();
+    const year = today.getUTCFullYear();
+    const month = ("0" + (today.getUTCMonth() + 1)).slice(-2);
+    const date = ("0" + today.getUTCDate()).slice(-2);
+    return `${year}-${month}-${date}`;
+  }
+
   // Make torrent of feed, resolves wih torrent object
   makeFeedTorrent(lang) {
     return new Promise(resolve => {
-      if (this.seedingTorrents.feed[lang]) {
-        resolve(this.seedingTorrents.feed[lang]);
+      // feed date
+      const feedID = this.getTodayDate();
+
+      if (
+        this.seedingTorrents.feed[feedID] &&
+        this.seedingTorrents.feed[feedID][lang]
+      ) {
+        resolve(this.seedingTorrents.feed[feedID][lang]);
       } else {
         debug(`proxy: Making feed-${lang}`);
 
@@ -322,7 +356,7 @@ class P2Wiki {
                   name: "feed"
                 },
                 torrent => {
-                  this.seedingTorrents.feed[lang] = torrent;
+                  this.seedingTorrents.feed[feedID][lang] = torrent;
 
                   debug(
                     `proxy: Started seeding feed-${lang} : ${torrent.infoHash}`
