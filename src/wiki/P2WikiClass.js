@@ -4,9 +4,9 @@
  * License - MIT
  */
 
-import axios from "axios";
-import P2PT from "p2pt";
-import generalApi from "./api/general";
+const axios = require("axios");
+const P2PT = require("p2pt");
+const generalApi = require("./api/http-general");
 
 const WebTorrent = require("webtorrent");
 const parallel = require("run-parallel");
@@ -63,8 +63,6 @@ class P2Wiki {
         try {
           msg = JSON.parse(msg);
           const type = msg.get;
-
-          console.log(msg);
 
           if (type === "feed") {
             this.makeFeedTorrent(msg.lang).then(torrent => {
@@ -177,7 +175,6 @@ class P2Wiki {
       const peer = this.proxyPeers[key];
 
       this.p2pt.send(peer, JSON.stringify(data)).then(([, response]) => {
-        console.log(response);
         try {
           response = JSON.parse(response);
           const hash = response.infoHash;
@@ -199,7 +196,7 @@ class P2Wiki {
   }
 
   // Promise: get feed/homepage
-  getFeed(lang) {
+  fetchFeed(lang) {
     return new Promise(resolve => {
       const feedID = this.getTodayDate();
 
@@ -215,7 +212,6 @@ class P2Wiki {
             lang
           },
           response => {
-            console.log(response);
             this.downloadTorrent(response.infoHash, torrent => {
               // The response emulates the original HTTP API response
               // "p2wiki" is prepended to new elements
@@ -226,6 +222,9 @@ class P2Wiki {
               };
 
               const completed = () => {
+                if (!this.fetchedContent.feed[feedID]) {
+                  this.fetchedContent.feed[feedID] = {};
+                }
                 this.fetchedContent.feed[feedID][lang] = feed;
                 resolve(feed);
               };
@@ -262,10 +261,12 @@ class P2Wiki {
         url: url,
         responseType: "blob"
       })
-        .then(function(response) {
-          var file = new window.File([response.data], filename, {
-            type: response.headers["content-type"]
-          });
+        .then(response => {
+          const file = this.makeFile(
+            filename,
+            response.data,
+            response.headers["content-type"]
+          );
 
           resolve(file);
         })
@@ -275,11 +276,16 @@ class P2Wiki {
     });
   }
 
-  // get a File object from text
-  getFileFromText(filename, text) {
-    return new window.File([text], filename, {
-      type: "text/plain"
-    });
+  // make a File object for WebTorrent
+  makeFile(filename, content, type = "text/plain") {
+    if (typeof File !== "undefined") {
+      return new File([content], filename, { type });
+    } else {
+      const file = Buffer.from(content);
+      file.name = filename;
+      file.type = type;
+      return file;
+    }
   }
 
   // Get today's UTC date split by '-'
@@ -305,9 +311,7 @@ class P2Wiki {
       } else {
         debug(`proxy: Making feed-${lang}`);
 
-        generalApi.httpFetchFeed(lang).then(feed => {
-          console.log(feed);
-
+        generalApi.fetchFeed(lang).then(feed => {
           /**
            * The files in torrent. Will have :
            * tfa.txt: feed.tfa JSON stringified
@@ -320,14 +324,12 @@ class P2Wiki {
 
           // The Featured Article
           const tfa = feed.tfa;
-          files.push(this.getFileFromText("tfa.txt", JSON.stringify(tfa)));
+          files.push(this.makeFile("tfa.txt", JSON.stringify(tfa)));
           media.push(tfa.originalimage.source);
 
           // Most Read Articles
           const mostread = feed.mostread;
-          files.push(
-            this.getFileFromText("mostread.txt", JSON.stringify(mostread))
-          );
+          files.push(this.makeFile("mostread.txt", JSON.stringify(mostread)));
 
           for (const article of mostread.articles) {
             if (article.originalimage) media.push(article.originalimage.source);
@@ -362,6 +364,9 @@ class P2Wiki {
                   name: "feed"
                 },
                 torrent => {
+                  if (!this.seedingTorrents.feed[feedID]) {
+                    this.seedingTorrents.feed[feedID] = {};
+                  }
                   this.seedingTorrents.feed[feedID][lang] = torrent;
 
                   debug(
@@ -435,10 +440,10 @@ class P2Wiki {
           `//en.wikipedia.org/w/api.php?action=parse&format=json&page=${articleName}&prop=text&formatversion=2&origin=*`
         )
         .then(response => {
-          var file = new window.File(
-            [response.data.parse.text],
+          const file = this.makeFile(
             "article.html",
-            { type: "text/html" }
+            response.data.parse.text,
+            "text/html"
           );
           files.push(file);
 
@@ -571,4 +576,4 @@ class P2Wiki {
   }
 }
 
-export default P2Wiki;
+module.exports = P2Wiki;
