@@ -12,4 +12,4 @@ pages: # the job must be named pages
     paths:
       - public # artifact path must be /public for GitLab Pages to pick it up
   only:
-    - master
+    - main
