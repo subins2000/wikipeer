@@ -113,6 +113,8 @@ export default {
         for (const filename in feed.p2wikiMedia) {
           const file = feed.p2wikiMedia[filename];
 
+          // TODO: Cache this blob URL
+
           this.$set(this.media, filename, "");
           file.getBlobURL((err, url) => {
             this.$set(this.media, filename, url);

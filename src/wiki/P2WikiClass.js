@@ -265,7 +265,7 @@ class P2Wiki {
       axios({
         method: "get",
         url: url,
-        responseType: "blob"
+        responseType: typeof window === "undefined" ? "arraybuffer" : "blob"
       })
         .then(response => {
           const file = this.makeFile(
