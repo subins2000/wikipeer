@@ -8,7 +8,13 @@ const axios = require("axios");
 const P2PT = require("p2pt");
 const generalApi = require("./api/http-general");
 
-const WebTorrent = require("webtorrent");
+let WebTorrent;
+if (typeof window === "undefined") {
+  WebTorrent = require("webtorrent-hybrid");
+} else {
+  WebTorrent = require("webtorrent");
+}
+
 const parallel = require("run-parallel");
 const debug = require("debug")("p2wiki");
 
