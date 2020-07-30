@@ -23,7 +23,8 @@
     "vue-router": "^3.3.4",
     "vuetify": "^2.3.6",
     "vuex": "^3.5.1",
-    "webtorrent": "^0.108.6"
+    "webtorrent": "^0.108.6",
+    "webtorrent-hybrid": "^4.0.2"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^4.4.6",
