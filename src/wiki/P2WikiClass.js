@@ -36,7 +36,7 @@ class P2Wiki {
 
     this.proxyPeers = {};
     this.proxyPeersID = [];
-    this.curProxyPeerIndex = 0;
+    this.proxyProcessQueue = [];
 
     // For proxy
     this.seedingTorrents = {
@@ -147,6 +147,8 @@ class P2Wiki {
             "client: got a proxy. Total proxies now : " +
               this.proxyPeersID.length
           );
+
+          this.proxyProcessQueueDo();
         }
       });
     });
@@ -158,47 +160,54 @@ class P2Wiki {
     this.p2pt.start();
   }
 
-  getAProxyPeer() {
-    if (this.proxyPeersID.length === 0) {
-      return false;
-    }
+  // Do process in proxy queue if atleast one proxy is available
+  proxyProcessQueueDo() {
+    return new Promise(resolve => {
+      let process;
+      while (
+        this.proxyPeersID.length > 0 &&
+        (process = this.proxyProcessQueue.shift()) !== undefined
+      ) {
+        const data = process[0];
+        const callback = process[1];
 
-    if (this.curProxyPeerIndex > this.proxyPeersID.length - 1) {
-      this.curProxyPeerIndex = 0;
-    }
+        const responses = {};
+        const responsesFrequency = {};
 
-    return this.proxyPeers[this.proxyPeersID[this.curProxyPeerIndex]];
+        for (const key in this.proxyPeers) {
+          const peer = this.proxyPeers[key];
+
+          this.p2pt.send(peer, JSON.stringify(data)).then(([, response]) => {
+            try {
+              response = JSON.parse(response);
+              const hash = response.infoHash;
+
+              if (!responsesFrequency[hash]) {
+                responses[hash] = response;
+                responsesFrequency[hash] = 0;
+              }
+              responsesFrequency[hash]++;
+
+              if (responsesFrequency[hash] >= PROXY_TRUST_CONSENSUS_COUNT) {
+                callback(responses[hash]);
+              }
+            } catch (e) {
+              debug("client: invalid response from proxy. " + e);
+            }
+          });
+        }
+      }
+
+      resolve();
+    });
   }
 
-  // Send a message to all proxy peers
+  // Send a message to all proxy peers.
   // callback will be only called if output
-  // from all proxt is the same (consensus)
+  // from all proxy is the same (consensus)
   proxySend(data, callback) {
-    const responses = {};
-    const responsesFrequency = {};
-
-    for (const key in this.proxyPeers) {
-      const peer = this.proxyPeers[key];
-
-      this.p2pt.send(peer, JSON.stringify(data)).then(([, response]) => {
-        try {
-          response = JSON.parse(response);
-          const hash = response.infoHash;
-
-          if (!responsesFrequency[hash]) {
-            responses[hash] = response;
-            responsesFrequency[hash] = 0;
-          }
-          responsesFrequency[hash]++;
-
-          if (responsesFrequency[hash] >= PROXY_TRUST_CONSENSUS_COUNT) {
-            callback(responses[hash]);
-          }
-        } catch (e) {
-          debug("client: invalid response from proxy. " + e);
-        }
-      });
-    }
+    this.proxyProcessQueue.push([data, callback]);
+    this.proxyProcessQueueDo();
   }
 
   // Promise: get feed/homepage
