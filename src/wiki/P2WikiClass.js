@@ -67,16 +67,13 @@ class P2Wiki {
         });
       } else {
         try {
-          msg = JSON.parse(msg);
           const type = msg.get;
 
           if (type === "feed") {
             this.makeFeedTorrent(msg.lang).then(torrent => {
-              peer.respond(
-                JSON.stringify({
-                  infoHash: torrent.infoHash
-                })
-              );
+              peer.respond({
+                infoHash: torrent.infoHash
+              });
             });
           } else if (type === "article") {
             var articleName = encodeURIComponent(msg.articleName);
@@ -177,9 +174,8 @@ class P2Wiki {
         for (const key in this.proxyPeers) {
           const peer = this.proxyPeers[key];
 
-          this.p2pt.send(peer, JSON.stringify(data)).then(([, response]) => {
+          this.p2pt.send(peer, data).then(([, response]) => {
             try {
-              response = JSON.parse(response);
               const hash = response.infoHash;
 
               if (!responsesFrequency[hash]) {
@@ -522,12 +518,9 @@ class P2Wiki {
       peer = this.proxyPeers[key];
 
       this.p2pt
-        .send(
-          peer,
-          JSON.stringify({
-            articleName: articleName
-          })
-        )
+        .send(peer, {
+          articleName: articleName
+        })
         .then(([, response]) => {
           // response will be torrent infohash
           responseInfoHashes.push(response);
