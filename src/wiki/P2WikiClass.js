@@ -17,6 +17,7 @@ if (typeof window === "undefined") {
   WebTorrent = require("webtorrent");
 }
 
+const MD5 = require("md5.js");
 const parallel = require("run-parallel");
 const debug = require("debug")("p2wiki");
 
@@ -83,6 +84,14 @@ class P2Wiki {
             this.makeArticleTorrent(msg.lang, msg.title).then(torrent => {
               peer.respond({
                 hash: torrent.infoHash
+              });
+            });
+          } else if (type === "search") {
+            // Search
+            generalApi.wikiSearch(msg.lang, msg.query).then(pages => {
+              peer.respond({
+                pages,
+                hash: new MD5().update(JSON.stringify(pages)).digest("hex")
               });
             });
           }
@@ -322,6 +331,31 @@ class P2Wiki {
     });
   }
 
+  // Promise: get search query results
+  wikiSearch(lang, query) {
+    return new Promise(resolve => {
+      const feedID = this.getTodayDate();
+
+      if (
+        this.fetchedContent.feed[feedID] &&
+        this.fetchedContent.feed[feedID][lang]
+      ) {
+        resolve(this.fetchedContent.feed[feedID][lang]);
+      } else {
+        this.proxySend(
+          {
+            get: "search",
+            lang,
+            query
+          },
+          response => {
+            resolve(response.pages);
+          }
+        );
+      }
+    });
+  }
+
   // Promise: get a File object from a URL
   getFileFromURL(filename, url) {
     return new Promise((resolve, reject) => {
@@ -481,8 +515,6 @@ class P2Wiki {
                 if (!item.srcset) {
                   continue;
                 }
-
-                console.log(item);
 
                 this.getFileFromURL(item.title, item.srcset[0].src).then(
                   file => {

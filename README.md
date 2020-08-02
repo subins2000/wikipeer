@@ -99,6 +99,28 @@ This info hash reflects the latest revision of the article at the time of torren
 * Problem: If a frequently visited article is kept seeding, proxies may not give the latest revision, because proxies need to wait for `timePeriod` to complete for the torrent to get destroyed. Only after this will the latest revision be fetched, and a new torrent of the latest revision. This also cause honest (trusted) proxies to return different info hashes. <br/>
   Solution: The old revision torrent will be destroyed even though it might take time. This problem is not that big of a concern. Still it's a problem
 
+#### Search
+
+Result of search queries are not communicated by torrent, but instead directly sent by proxies. This is to speed up auto suggestion on entering search query.
+
+```javascript
+{
+  get: "search",
+  q: "query"
+}
+```
+
+The proxies would respond with :
+
+```javascript
+{
+  pages: {}, // results
+  hash: "168fc8ca6cdb8c98502428dd0f9e5113" // MD5 hash of the previous pages object
+}
+```
+
+The [#consensus](#consensus) rule applies here too using the `hash` value.
+
 ### Torrent
 
 Any torrent client that supports WebTorrent (Seeding to web peers over WebRTC) can help in sharing articles to Wikipeer clients. The torrent needs to be made in a specific way so that the info hash made by different seeders/proxies will be the same.
