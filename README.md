@@ -7,6 +7,11 @@ Can be also called (aka) :
 * Access Wikipedia over WebRTC & Torrents
 * Website proxy over WebRTC
 
+Wikipeer is available in the following domains :
+
+* [wikipeer.subinsb.com](https://wikipeer.subinsb.com)
+* 
+
 ## Architecture
 
 Terms used :
@@ -28,6 +33,20 @@ The Wikipeer implementation to Wikivue is mostly made by these files (ordered ac
 * `src/components/ArticleContent.vue` & `src/components/ArticleSectionContent.vue` - These should hopefully be merged into Wikivue
 * src/views/Home.vue
 
+### Development
+
+Wikipeer has two components :
+
+* Browser: Any user opening  Wikipeer via browser can either be a client or proxy, but not both at the same time
+* Node: Dedicated proxy service that runs in the terminal
+
+`npm serve` - Runs Vue development server (browser part).
+
+`npm proxy` - Runs the dedicated proxy.
+
+`npm start` - Runs both proxy & Vue dev server.
+
+Both browser & node can communicate with each other through WebRTC. The Node component is basically [WebTorrent-hybrid](https://github.com/webtorrent/webtorrent-hybrid).
 
 ### P2PT
 

@@ -4,6 +4,8 @@
   "private": true,
   "main": "start-proxy.js",
   "scripts": {
+    "start": "npm run proxy & npm run serve",
+    "proxy": "node start-proxy.js",
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
     "test:unit": "vue-cli-service test:unit",
