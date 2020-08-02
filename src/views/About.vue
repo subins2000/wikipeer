@@ -3,23 +3,27 @@
     <v-card class="my-5" :elevation="0">
       <v-card-title>
         <h1 align="center">
-          <span class="cap">W</span><span class="smallcap">ikipedi</span
-          ><span class="cap">A</span>
+          <span class="cap">W</span><span class="smallcap">ikipee</span
+          ><span class="cap">R</span>&nbsp;&nbsp;
+          <v-icon x-large>{{ mdiAccountMultiplePlus }}</v-icon>
         </h1>
       </v-card-title>
     </v-card>
     <v-row class="ma-5">
       <p>
-        This is a Vuejs powered modern, single page, progressive, offline
-        capable web application for Wikipedia. Code named as Wikivue(pronounced
-        /ˌwɪkɪ vjuː/, like wiki-view).
+        Wikipeer is a decentralized P2P proxy to access Wikipedia. Wikipedia
+        requests are proxied through other Wikipeer users or dedicated proxy
+        users and content is fetched through torrents. Source code:
+        <a target="_blank" href="https://github.com/subins2000/wikipeer"
+          >GitHub</a
+        >. Author: <a href="https://subinsb.com/projects">Subin Siby</a>
       </p>
       <p>
-        Source code:
-        <a href="https://gitlab.com/santhoshtr/wikivue"
-          >https://gitlab.com/santhoshtr/wikivue</a
+        Wikipedia interface implemented with
+        <a target="_blank" href="https://gitlab.com/santhoshtr/wikivue"
+          >Wikivue</a
         >
-        Author: <a href="https://thottingal.in">Santhosh Thottingal</a>
+        made by <a href="https://thottingal.in">Santhosh Thottingal</a>.
       </p>
       <p>
         This is NOT an official Wikimedia Foundation project. Wikipedia,
@@ -41,8 +45,12 @@
   </v-layout>
 </template>
 <script>
+import { mdiAccountMultiplePlus } from "@mdi/js";
 export default {
-  name: "Home"
+  name: "Home",
+  data: () => ({
+    mdiAccountMultiplePlus
+  })
 };
 </script>
 <style scoped lang="less">
