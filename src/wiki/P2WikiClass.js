@@ -74,7 +74,7 @@ class P2Wiki {
           if (type === "feed") {
             this.makeFeedTorrent(msg.lang).then(torrent => {
               peer.respond({
-                infoHash: torrent.infoHash
+                hash: torrent.infoHash
               });
             });
           } else if (type === "article") {
@@ -82,7 +82,7 @@ class P2Wiki {
 
             this.makeArticleTorrent(msg.lang, msg.title).then(torrent => {
               peer.respond({
-                infoHash: torrent.infoHash
+                hash: torrent.infoHash
               });
             });
           }
@@ -170,7 +170,7 @@ class P2Wiki {
 
           this.p2pt.send(peer, data).then(([, response]) => {
             try {
-              const hash = response.infoHash;
+              const hash = response.hash;
 
               if (!responsesFrequency[hash]) {
                 responses[hash] = response;
@@ -217,7 +217,7 @@ class P2Wiki {
             lang
           },
           response => {
-            this.downloadTorrent(response.infoHash, torrent => {
+            this.downloadTorrent(response.hash, torrent => {
               // The response emulates the original HTTP API response
               // "p2wiki" is prepended to new elements
               const feed = {
@@ -274,7 +274,7 @@ class P2Wiki {
             title
           },
           response => {
-            this.downloadTorrent(response.infoHash, torrent => {
+            this.downloadTorrent(response.hash, torrent => {
               // [articleData, revisions, media, languages]
               const article = [];
 
