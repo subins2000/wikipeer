@@ -359,6 +359,8 @@ class P2Wiki {
   // Promise: get a File object from a URL
   getFileFromURL(filename, url) {
     return new Promise((resolve, reject) => {
+      if (url.substr(0, 2) === "//") url = "https:" + url;
+
       axios({
         method: "get",
         url: url,

@@ -20,7 +20,7 @@ function fetchLanguages(language, title) {
     origin: "*"
   };
 
-  const api = `//${language}.wikipedia.org/w/api.php`;
+  const api = `https://${language}.wikipedia.org/w/api.php`;
   return axios.get(api, { params }).then(response => {
     return response.data.query.pages.length
       ? response.data.query.pages[0].langlinks
@@ -39,7 +39,7 @@ function fetchRevisions(language, title) {
     origin: "*"
   };
 
-  const api = `//${language}.wikipedia.org/w/api.php`;
+  const api = `https://${language}.wikipedia.org/w/api.php`;
   return axios.get(api, { params }).then(response => {
     return response.data.query.pages.length
       ? response.data.query.pages[0].revisions
