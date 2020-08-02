@@ -563,6 +563,9 @@ class P2Wiki {
         .then(([articleData, revisions, languages]) => {
           files.push(this.makeFile("article.txt", JSON.stringify(articleData)));
           files.push(this.makeFile("revisions.txt", JSON.stringify(revisions)));
+
+          if (!languages) languages = [];
+
           files.push(this.makeFile("languages.txt", JSON.stringify(languages)));
 
           this.wt.seed(
