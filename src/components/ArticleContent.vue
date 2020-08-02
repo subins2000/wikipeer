@@ -28,10 +28,9 @@
               <h3 class="px-md-2" v-else v-html="section.heading" />
             </a>
             <v-layout row fill-height class="pa-0 ma-0">
-              <div
-                class="flex xs12 sm12 md8 lg8 pa-md-2"
-                v-html="section.content"
-              />
+              <div class="flex xs12 sm12 md8 lg8 pa-md-2">
+                <article-section-content :value="section.content" />
+              </div>
               <aside
                 class="flex px-2 md4 lg4 hidden-sm-and-down section-aside"
                 v-html="section.aside"
@@ -72,6 +71,7 @@
 import TableOfContents from "./TOC";
 import ArticleHeader from "./ArticleHeader";
 import ArticleFooter from "./ArticleFooter";
+import ArticleSectionContent from "./ArticleSectionContent";
 
 import wikipage from "../wiki/page";
 import Article from "../wiki/models/article";
@@ -90,7 +90,8 @@ export default {
     Reference: () => import(/* webpackPrefetch: true */ "./Reference.vue"),
     ArticleHeader,
     ArticleFooter,
-    ImageViewer: () => import(/* webpackPrefetch: true */ "./ImageViewer.vue")
+    ImageViewer: () => import(/* webpackPrefetch: true */ "./ImageViewer.vue"),
+    ArticleSectionContent
   },
   data: () => ({
     error: null,
@@ -183,7 +184,12 @@ export default {
       }
     },
     parse(section, noAside) {
-      return wikipage.parse(section.html, this.contentLanguage, noAside);
+      return wikipage.parse(
+        section.html,
+        this.contentLanguage,
+        this.article.media,
+        noAside
+      );
     },
     listen() {
       const links = document.querySelectorAll("section a[title]");

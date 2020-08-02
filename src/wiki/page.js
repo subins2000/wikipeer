@@ -1,7 +1,36 @@
 export default {
-  parse(section, contentLanguage, expanded) {
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = section;
+  parse(section, contentLanguage, media, expanded) {
+    const parser = new window.DOMParser();
+    const wrapper = parser.parseFromString(section, "text/html");
+
+    const images = wrapper.querySelectorAll("a[class='image']");
+    for (let i = 0; i < images.length; i++) {
+      images[i].addEventListener("click", event =>
+        this.imageClickHandler(images[i], event)
+      );
+
+      // Pathname example: /wiki/File:Parashurama_with_axe.jpg
+      const filename = decodeURIComponent(
+        new URL(images[i].href).pathname.slice(6)
+      );
+
+      images[i].firstChild.src = "";
+      images[i].firstChild.srcset = "";
+
+      if (media[filename]) {
+        /**
+         * Wikimedia Commons convert SVG to PNG in articles
+         * renderTo function uses extension for detecting file type : https://github.com/feross/render-media/issues/33
+         */
+        if (filename.substr(-4, 4) === ".svg") {
+          media[filename].name += ".png";
+        }
+
+        media[filename].getBlobURL((error, url) => {
+          images[i].firstChild.src = url;
+        });
+      }
+    }
 
     const links = wrapper.querySelectorAll("a[href]");
     for (let l = 0; l < links.length; l++) {
@@ -75,7 +104,7 @@ export default {
       }
     }
     return {
-      content: wrapper.innerHTML,
+      content: wrapper.body, // This is a DOM Element object, not html string
       aside: aside.innerHTML,
       infobox: infoboxHTML
     };

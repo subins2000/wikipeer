@@ -6,6 +6,8 @@
 
 const axios = require("axios");
 const P2PT = require("p2pt");
+
+const articleApi = require("./api/http-article");
 const generalApi = require("./api/http-general");
 
 let WebTorrent;
@@ -60,9 +62,9 @@ class P2Wiki {
     this.p2pt.on("msg", (peer, msg) => {
       if (msg === "c") {
         // Yes, I'm a proxy
-        peer.respond("p").catch(err => {
+        peer.respond("p").catch(error => {
           console.error(
-            "Connection to client failed before handsahake. " + err
+            "Connection to client failed before handsahake. " + error
           );
         });
       } else {
@@ -76,21 +78,13 @@ class P2Wiki {
               });
             });
           } else if (type === "article") {
-            var articleName = encodeURIComponent(msg.articleName);
+            console.log("Got request for article " + msg.title);
 
-            console.log("Got request for article " + articleName);
-
-            $this
-              .makeArticleTorrent(msg.articleName)
-              .then(torrent => {
-                peer.respond(torrent.infoHash);
-              })
-              .catch(error => {
-                console.log("Torrent creation failed : " + error);
-
-                // Torrent creation failed
-                delete $this.seedingTorrents[articleName];
+            this.makeArticleTorrent(msg.lang, msg.title).then(torrent => {
+              peer.respond({
+                infoHash: torrent.infoHash
               });
+            });
           }
         } catch (e) {
           console.log(e);
@@ -264,6 +258,70 @@ class P2Wiki {
     });
   }
 
+  // Promise: get article
+  fetchArticle(lang, title) {
+    return new Promise(resolve => {
+      if (
+        this.fetchedContent.articles[lang] &&
+        this.fetchedContent.articles[lang][title]
+      ) {
+        resolve(this.fetchedContent.articles[lang][title]);
+      } else {
+        this.proxySend(
+          {
+            get: "article",
+            lang,
+            title
+          },
+          response => {
+            this.downloadTorrent(response.infoHash, torrent => {
+              // [articleData, revisions, media, languages]
+              const article = [];
+
+              const getFile = filename => {
+                return new Promise(resolve => {
+                  torrent.files.forEach(file => {
+                    if (file.name === filename) {
+                      file.getBuffer((error, buffer) => {
+                        resolve(JSON.parse(buffer.toString()));
+                      });
+                    }
+                  });
+                });
+              };
+
+              Promise.all([
+                getFile("article.txt"),
+                getFile("revisions.txt"),
+                getFile("languages.txt")
+              ]).then(([articleData, revisions, languages]) => {
+                article[0] = articleData;
+                article[1] = revisions;
+
+                // media
+                article[2] = {};
+                torrent.files.forEach(file => {
+                  if (!file.name.endsWith(".txt")) {
+                    article[2][file.name] = file;
+                  }
+                });
+
+                article[3] = languages;
+
+                if (!this.fetchedContent.articles[lang]) {
+                  this.fetchedContent.articles[lang] = {};
+                }
+                this.fetchedContent.articles[lang][title] = article;
+
+                resolve(article);
+              });
+            });
+          }
+        );
+      }
+    });
+  }
+
   // Promise: get a File object from a URL
   getFileFromURL(filename, url) {
     return new Promise((resolve, reject) => {
@@ -355,7 +413,7 @@ class P2Wiki {
               files.push(file);
 
               debug(
-                `proxy: Making feed-${lang} : Fetched image ${files.length -
+                `proxy: Making feed-${lang}: Fetched image ${files.length -
                   2}/${media.length}`
               );
 
@@ -394,179 +452,119 @@ class P2Wiki {
     });
   }
 
-  makeArticleTorrent(articleName) {
-    const $this = this;
-
+  makeArticleTorrent(lang, articleTitle) {
     return new Promise((resolve, reject) => {
-      articleName = encodeURIComponent(articleName);
-
-      if ($this.seedingTorrents[articleName]) {
-        if ($this.seedingTorrents[articleName].torrent) {
-          resolve($this.seedingTorrents[articleName].torrent);
-        }
+      if (
+        this.seedingTorrents.articles[lang] &&
+        this.seedingTorrents.articles[lang][articleTitle]
+      ) {
+        resolve(this.seedingTorrents.articles[lang][articleTitle].torrent);
         return;
       }
 
-      // Started making torrent
-      $this.seedingTorrents[articleName] = {};
+      // Torrent files
+      const files = [];
 
-      var files = [];
-      var fetched = {
-        title: "",
-        article: false,
-        media: [],
-        mediaCount: 0
+      const fetchMedia = () => {
+        return new Promise((resolve, reject) => {
+          // Media stats
+          const media = {
+            fetched: 0,
+            total: 0
+          };
+
+          articleApi
+            .fetchMedia(lang, articleTitle)
+            .then(response => {
+              for (const item of response.items) {
+                // Skip non-images
+                if (!item.srcset) {
+                  continue;
+                }
+
+                console.log(item);
+
+                this.getFileFromURL(item.title, item.srcset[0].src).then(
+                  file => {
+                    files.push(file);
+                    media.fetched++;
+
+                    debug(
+                      `proxy: Article-${lang} '${articleTitle}': Fetched media ${media.fetched}/${media.total}`
+                    );
+
+                    if (media.fetched === media.total) resolve();
+                  }
+                );
+
+                media.total++;
+              }
+
+              debug(
+                `proxy: Article-${lang} '${articleTitle}': Fetched medialist. Has ${media.total} media files`
+              );
+            })
+            .catch(error => {
+              reject(error);
+            });
+        });
       };
 
-      var ifCompletedMakeTorrent = () => {
-        if (fetched.article && fetched.media.length === fetched.mediaCount) {
-          $this.wt.seed(
+      const fetchArticle = () => {
+        const api = `https://${lang}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(
+          articleTitle
+        )}`;
+        return axios.get(api).then(response => response.data);
+      };
+
+      const fetchRevisions = articleApi.fetchRevisions;
+      const fetchLanguages = articleApi.fetchLanguages;
+
+      Promise.all([
+        fetchArticle(lang, articleTitle),
+        fetchRevisions(lang, articleTitle),
+        fetchLanguages(lang, articleTitle),
+        fetchMedia(lang, articleTitle)
+      ])
+        .then(([articleData, revisions, languages]) => {
+          files.push(this.makeFile("article.txt", JSON.stringify(articleData)));
+          files.push(this.makeFile("revisions.txt", JSON.stringify(revisions)));
+          files.push(this.makeFile("languages.txt", JSON.stringify(languages)));
+
+          this.wt.seed(
             files,
             {
-              announceList: [$this.announceURLs],
-              name: fetched.title
+              announceList: [this.announceURLs],
+              name: articleData.lead.normalizedtitle
             },
             torrent => {
-              $this.seedingTorrents[articleName] = {
+              if (!this.seedingTorrents.articles[lang]) {
+                this.seedingTorrents.articles[lang] = {};
+              }
+
+              this.seedingTorrents.articles[lang][articleTitle] = {
                 lastActive: new Date(),
-                torrent: torrent
+                torrent
               };
 
               torrent.on("upload", () => {
-                $this.seedingTorrents[articleName].lastActive = new Date();
+                this.seedingTorrents.articles[lang][
+                  articleTitle
+                ].lastActive = new Date();
               });
 
               debug(
-                `Started seeding article '${articleName}' : ${torrent.infoHash}`
+                `proxy: Article-${lang} '${articleTitle}': Seeding at ${torrent.infoHash}`
               );
 
               resolve(torrent);
             }
-          );
-        }
-      };
-
-      axios
-        .get(
-          `//en.wikipedia.org/w/api.php?action=parse&format=json&page=${articleName}&prop=text&formatversion=2&origin=*`
-        )
-        .then(response => {
-          const file = this.makeFile(
-            "article.html",
-            response.data.parse.text,
-            "text/html"
-          );
-          files.push(file);
-
-          fetched.title = response.data.parse.title;
-          fetched.article = true;
-
-          debug(`Article ${articleName} : Fetched text`);
-
-          ifCompletedMakeTorrent();
-        })
-        .catch(error => {
-          reject(error);
-        });
-
-      axios
-        .get(`//en.wikipedia.org/api/rest_v1/page/media-list/${articleName}`)
-        .then(response => {
-          var item;
-          for (var key in response.data.items) {
-            item = response.data.items[key];
-
-            // Skip non-images
-            if (!item.srcset) {
-              continue;
-            }
-
-            this.getFileFromURL(item.title, item.srcset[0].src).then(file => {
-              files.push(file);
-              fetched.media.push(item.title);
-
-              debug(
-                `Article ${articleName} : Fetched image ${fetched.media.length}/${fetched.mediaCount}`
-              );
-            });
-            fetched.mediaCount++;
-          }
-
-          debug(
-            `Article ${articleName} : Fetched medialist. Has ${fetched.mediaCount} images`
           );
         })
         .catch(error => {
           reject(error);
         });
     });
-  }
-
-  requestArticle(articleName, callback) {
-    this.p2pt.requestMorePeers();
-
-    if (this.proxyPeers.length === 0) {
-      return false;
-    }
-
-    const $this = this;
-
-    var peer;
-    var responseInfoHashes = [];
-
-    for (var key in this.proxyPeers) {
-      peer = this.proxyPeers[key];
-
-      this.p2pt
-        .send(peer, {
-          articleName: articleName
-        })
-        .then(([, response]) => {
-          // response will be torrent infohash
-          responseInfoHashes.push(response);
-          var infoHash = $this.checkConsensus(responseInfoHashes);
-
-          if (infoHash) {
-            console.log("1");
-            $this.downloadTorrent(infoHash, torrent => {
-              var article = {
-                title: "",
-                text: null,
-                media: {}
-              };
-
-              torrent.files.forEach(file => {
-                if (file.name === "article.html") {
-                  article.title = torrent.name;
-                  article.text = file;
-                } else {
-                  article.media[file.name] = file;
-                }
-              });
-
-              callback(article);
-            });
-          }
-        });
-    }
-  }
-
-  checkConsensus(infoHashes) {
-    var infoHashesFrequency = {};
-    var infoHash;
-
-    for (var key in infoHashes) {
-      infoHash = infoHashes[key];
-      if (!infoHashesFrequency[infoHash]) {
-        infoHashesFrequency[infoHash] = 0;
-      }
-      infoHashesFrequency[infoHash]++;
-
-      if (infoHashesFrequency[infoHash] >= PROXY_TRUST_CONSENSUS_COUNT) {
-        return infoHash;
-      }
-    }
-    return false;
   }
 
   downloadTorrent(infoHash, onTorrent) {
