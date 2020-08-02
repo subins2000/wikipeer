@@ -11,7 +11,7 @@ export default {
         /[^/\\&?]+\.\w{3,4}(?=([?&].*$|$))/gm
       );
 
-      if (filename[0]) {
+      if (filename && filename[0]) {
         filename = filename[0];
       } else {
         continue;

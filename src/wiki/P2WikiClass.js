@@ -289,13 +289,17 @@ class P2Wiki {
 
               const getFile = filename => {
                 return new Promise(resolve => {
-                  torrent.files.forEach(file => {
+                  for (const file of torrent.files) {
                     if (file.name === filename) {
                       file.getBuffer((error, buffer) => {
                         resolve(JSON.parse(buffer.toString()));
                       });
+                      return;
                     }
-                  });
+                  }
+                  // If no file resolve empty
+                  // eg: might be no article in other langs
+                  resolve([]);
                 });
               };
 
@@ -564,9 +568,11 @@ class P2Wiki {
           files.push(this.makeFile("article.txt", JSON.stringify(articleData)));
           files.push(this.makeFile("revisions.txt", JSON.stringify(revisions)));
 
-          if (!languages) languages = [];
-
-          files.push(this.makeFile("languages.txt", JSON.stringify(languages)));
+          if (languages) {
+            files.push(
+              this.makeFile("languages.txt", JSON.stringify(languages))
+            );
+          }
 
           this.wt.seed(
             files,
