@@ -7354,10 +7354,10 @@ p-try@^2.0.0:
   resolved "https://registry.yarnpkg.com/p-try/-/p-try-2.2.0.tgz#cb2868540e313d61de58fafbe35ce9004d5540e6"
   integrity sha512-R4nPAVTAU0B9D35/Gk3uJf/7XYbQcyohSKdvAxIRSNghFl4e71hVoGnBNQz9cWaXxO2I10KTC+3jMdvvoKw6dQ==
 
-p2pt@1.4.0:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/p2pt/-/p2pt-1.4.0.tgz#57583cb11f66f8f736ca346c6b85d9974b03388d"
-  integrity sha512-UN3CFZMt2hcLc6+wX86O+Qq+KhBwPPfi9n8glnvRfiYO0WSYgQs0NYRfO5eU20Qkrk4BDc/fIGhnSDENcvZrnw==
+p2pt@1.4.1:
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/p2pt/-/p2pt-1.4.1.tgz#f0a300a767a04618addc06df58691da89be55da6"
+  integrity sha512-2B/SneoUYDzY4pKdCM/bCezvbFKThXAWgOHKYza5ScNUukCGFeZG+X30nWSNMob10qOcwqV5dn2WL3ViNKeTcg==
   dependencies:
     bittorrent-tracker "^9.14.5"
     randombytes "^2.1.0"
