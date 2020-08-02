@@ -31,10 +31,9 @@
               <div class="flex xs12 sm12 md8 lg8 pa-md-2">
                 <article-section-content :value="section.content" />
               </div>
-              <aside
-                class="flex px-2 md4 lg4 hidden-sm-and-down section-aside"
-                v-html="section.aside"
-              />
+              <aside class="flex px-2 md4 lg4 hidden-sm-and-down section-aside">
+                <article-section-content :value="section.aside" />
+              </aside>
             </v-layout>
           </section>
           <v-expansion-panels accordion class="mb-5">

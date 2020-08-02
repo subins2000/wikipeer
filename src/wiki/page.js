@@ -1,9 +1,6 @@
 export default {
-  parse(section, contentLanguage, media, expanded) {
-    const parser = new window.DOMParser();
-    const wrapper = parser.parseFromString(section, "text/html");
-
-    const images = wrapper.querySelectorAll("a[class='image']");
+  replaceImages(media, elem) {
+    const images = elem.querySelectorAll("a[class='image']");
     for (let i = 0; i < images.length; i++) {
       images[i].addEventListener("click", event =>
         this.imageClickHandler(images[i], event)
@@ -11,8 +8,8 @@ export default {
 
       // Pathname example: /wiki/File:Parashurama_with_axe.jpg
       const filename = decodeURIComponent(
-        new URL(images[i].href).pathname.slice(6)
-      );
+        new URL(images[i].href).pathname
+      ).match(/[^/\\&?]+\.\w{3,4}(?=([?&].*$|$))/gm)[0];
 
       images[i].firstChild.src = "";
       images[i].firstChild.srcset = "";
@@ -26,13 +23,24 @@ export default {
           media[filename].name += ".png";
         }
 
-        media[filename].getBlobURL((error, url) => {
-          images[i].firstChild.src = url;
-        });
+        media[filename].renderTo(images[i].firstChild);
       }
     }
 
-    const links = wrapper.querySelectorAll("a[href]");
+    return elem;
+  },
+
+  parse(section, contentLanguage, media, expanded) {
+    const parser = new window.DOMParser();
+
+    let wrapper = parser.parseFromString(
+      "<div>" + section + "</div>",
+      "text/html"
+    );
+
+    const content = this.replaceImages(media, wrapper.body.firstChild);
+
+    const links = content.querySelectorAll("a[href]");
     for (let l = 0; l < links.length; l++) {
       let link = links[l];
       for (let i = 0; i < link.attributes.length; i++) {
@@ -48,7 +56,9 @@ export default {
       }
     }
 
-    const aside = document.createElement("aside");
+    let aside = parser.parseFromString("<aside></aside>", "text/html");
+    aside = aside.body.firstChild;
+
     let infoboxHTML;
     if (!expanded) {
       const hatnotes = wrapper.querySelectorAll("div.hatnote");
@@ -103,9 +113,12 @@ export default {
         if (i === 5) break; // Don't add too many items to sidebar
       }
     }
+
+    aside = this.replaceImages(media, aside);
+
     return {
-      content: wrapper.body, // This is a DOM Element object, not html string
-      aside: aside.innerHTML,
+      content, // This is a DOM Element object, not html string
+      aside, // This is a DOM Element object, not html string
       infobox: infoboxHTML
     };
   },
