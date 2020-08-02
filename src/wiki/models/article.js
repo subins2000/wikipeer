@@ -1,4 +1,4 @@
-export default class Article {
+class Article {
   constructor({
     description,
     languagecount = 1,
@@ -102,3 +102,5 @@ export default class Article {
     return str ? encodeURIComponent(str) : null;
   }
 }
+
+module.exports = Article;

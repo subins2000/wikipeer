@@ -1,10 +1,11 @@
 # Wikipeer
 
-Decentralized P2P proxy to access Wikipedia using WebTorrent.
+Decentralized P2P proxy to access Wikipedia. Works entirely on [WebTorrent](https://webtorrent.io/) ecosystem with [P2PT](https://github.com/subins2000/p2pt).
 
-can be also called :
-* Access Wikipedia over WebRTC
-* Proxy over WebRTC
+Can be also called (aka) :
+
+* Access Wikipedia over WebRTC & Torrents
+* Website proxy over WebRTC
 
 ## Architecture
 
@@ -15,23 +16,91 @@ Terms used :
 * Compile (verb) -> Collect the text, images, media of a Wikipedia page and make a torrent.
 * Seed (verb) -> Same as the seeding in bittorrent.
 * Info Hash -> Info Hash of torrent made by compiling a page.
+* Feed -> Wikipedia homepage
+* Article -> A Wikipedia article
+
+Wikipeer uses [Wikivue](https://github.com/santhoshtr/wikivue) for the user interface. Wikipeer will continue to pull changes from Wikivue. Because of this, only the really necessary changes are made in the source code to avoid future merge conflicts. If you'd like to make improvements to the user interface, please send a patch to [Wikivue](https://github.com/santhoshtr/wikivue).
+
+The Wikipeer implementation to Wikivue is mostly made by these files (ordered according to importance HIGH to LOW). Take a peek at them for understanding this document better.
+
+* src/wiki/P2WikiClass.js
+* src/wiki/api/*
+* `src/components/ArticleContent.vue` & `src/components/ArticleSectionContent.vue` - These should hopefully be merged into Wikivue
+* src/views/Home.vue
+
 
 ### P2PT
 
 Read about [P2PT here](https://github.com/subins2000/p2pt).
 
-The app identifier is "p2wiki". Since both clients and proxies will be in the same swarm, a proxy is identified in the intial message. Client will send "c" and proxies will send "p".
+The app identifier is "p2wiki". Since both clients and proxies will be in the same swarm, a proxy is identified in the intial message. Client will send `c` and proxies will send `p`. All other communication between client & proxy is in JSON format.
 
 TODO: Maintain a balanced list of clients and proxies.
 
 #### Consensus
 
-Since we can't really trust a proxy, a consensus need to be reached to make a trust. A info hash from a proxy is trusted when different proxies return the same info hash.
+Since we can't really trust a proxy, a consensus need to be reached to make a trust. A response from a proxy is trusted when different proxies return the same response. This is done by equating checksum of response of each proxy.
 
-* Consensus value -> How many proxies should return the same info hash (info hash) for it to be trusted and start downloading ?
+* Consensus value (`const PROXY_TRUST_CONSENSUS_COUNT`) -> How many proxies should return the same response for it to be trusted and start downloading ?
 
-### Homepage
+Since Wikipeer is at its beginning, the consensus value is set to **1** that is all proxies are trusted and considered honest. This should be increased as Wikipeer grows with more proxies.
 
-The Wikipedia homepage (feed) is identified by the language & the present date. Every proxy will by default seed the homepage. Once a client has the homepage, they will also seed it.
+### Content
 
-When Wikipeer is visited, the client will request proxies for the "feed". The proxies will respond back the info hash. If all the proxies return the same info hash (see [consensus](#consensus)), the torrent of homepage is downloaded and displayed. The clients will store this homepage torrent and start seeding it.
+#### Feed
+
+The Wikipedia feed (or homepage) is identified by the language & the present date. Every proxy will by default seed the feed. Once a client has the feed, they will also seed it (See [#torrent](#torrent))
+
+When Wikipeer is visited, the client will request proxies for the "feed" :
+
+```javascript
+{
+  get: "feed",
+  lang: "en" // English
+}
+```
+
+The proxies will respond back the info hash :
+
+```javascript
+{
+  hash: "dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c"
+}
+```
+
+If all the proxies return the same info hash (see [#consensus](#consensus)), the torrent of feed is downloaded and displayed. The clients will store this homepage torrent and start seeding it.
+
+#### Article
+
+A Wikipedia article is identified by language and title. Title may vary according to language.
+
+Like the [#feed](#feed), proxies are requested for an article :
+
+```javascript
+{
+  get: "article",
+  lang: "ml" // Malayalam
+  title: "കേരളം"
+}
+```
+
+Response from proxy :
+
+```javascript
+{
+  hash: "209c8226b299b308beaf2b9cd3fb49212dbd13ec"
+}
+```
+
+This info hash reflects the latest revision of the article at the time of torrent creation.
+
+* Torrent remove timeout -> A torrent is kept seeded by proxy for a particular `timePeriod`. If an article torrent is inactive (no downloads) for `timePeriod`, it's destroyed. This ensures proxies are not keeping less visited articles forever and save resources. This `timePeriod` is stored as minutes in `TORRENT_REMOVE_TIMEOUT`.
+
+* Problem: If a frequently visited article is kept seeding, proxies may not give the latest revision, because proxies need to wait for `timePeriod` to complete for the torrent to get destroyed. Only after this will the latest revision be fetched, and a new torrent of the latest revision. This also cause honest (trusted) proxies to return different info hashes. <br/>
+  Solution: The old revision torrent will be destroyed even though it might take time. This problem is not that big of a concern. Still it's a problem
+
+### Torrent
+
+Any torrent client that supports WebTorrent (Seeding to web peers over WebRTC) can help in sharing articles to Wikipeer clients. The torrent needs to be made in a specific way so that the info hash made by different seeders/proxies will be the same.
+
+When a client downloads a torrent, they will also seed it increasing the availability of that feed/article. There is no time limit like in proxy for destroying the torrent.
