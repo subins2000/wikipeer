@@ -1,16 +1,17 @@
 # Wikipeer
 
-Decentralized P2P proxy to access Wikipedia. Works entirely on [WebTorrent](https://webtorrent.io/) ecosystem with [P2PT](https://github.com/subins2000/p2pt).
+Decentralized P2P proxy in browser to access Wikipedia. Works entirely on [WebTorrent](https://webtorrent.io/) ecosystem with [P2PT](https://github.com/subins2000/p2pt). No installation needed, direct use from browser!
 
-Can be also called (aka) :
+Wikipeer is available on the following domains, all static sites :
+
+* [wikipeer.subinsb.com](https://wikipeer.subinsb.com)
+* [wikipeer.herokuapp.com](https://wikipeer.herokuapp.com/)
+* [dazzling-nightingale-9995ef.netlify.app](https://dazzling-nightingale-9995ef.netlify.app/)
+
+This project can be also called (aka) :
 
 * Access Wikipedia over WebRTC & Torrents
 * Website proxy over WebRTC
-
-Wikipeer is available in the following domains :
-
-* [wikipeer.subinsb.com](https://wikipeer.subinsb.com)
-* 
 
 ## Architecture
 

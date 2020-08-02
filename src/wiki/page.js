@@ -6,10 +6,16 @@ export default {
         this.imageClickHandler(images[i], event)
       );
 
-      // Pathname example: /wiki/File:Parashurama_with_axe.jpg
-      const filename = decodeURIComponent(
-        new URL(images[i].href).pathname
-      ).match(/[^/\\&?]+\.\w{3,4}(?=([?&].*$|$))/gm)[0];
+      // Pathname example: /page/en/File:Parashurama_with_axe.jpg
+      let filename = decodeURIComponent(new URL(images[i].href).pathname).match(
+        /[^/\\&?]+\.\w{3,4}(?=([?&].*$|$))/gm
+      );
+
+      if (filename[0]) {
+        filename = filename[0];
+      } else {
+        continue;
+      }
 
       images[i].firstChild.src = "";
       images[i].firstChild.srcset = "";
