@@ -16,10 +16,10 @@
                   :src="
                     tfa.originalimage
                       ? media[getFilename(tfa.originalimage.source)]
-                      : require('@/assets/Wikipedia logo version 2.svg?lazy')
+                      : require('@/assets/Wikipedia-logo-version-2.svg?lazy')
                   "
                   :lazy-src="
-                    require('@/assets/Wikipedia logo version 2.svg?lazy')
+                    require('@/assets/Wikipedia-logo-version-2.svg?lazy')
                   "
                   height="250"
                   contain
@@ -59,11 +59,11 @@
                   :src="
                     article.originalimage
                       ? media[getFilename(article.originalimage.source)]
-                      : require('@/assets/Wikipedia logo version 2.svg?lazy')
+                      : require('@/assets/Wikipedia-logo-version-2.svg?lazy')
                   "
                   contain
                   :lazy-src="
-                    require('@/assets/Wikipedia logo version 2.svg?lazy')
+                    require('@/assets/Wikipedia-logo-version-2.svg?lazy')
                   "
                   :height="$vuetify.breakpoint.mdAndUp ? '250px' : 'auto'"
                 ></v-img>
