@@ -8,7 +8,7 @@ let announceURLs = [
 ];
 
 if (window.location.hostname === "localhost") {
-  announceURLs = ["ws://localhost:5000"];
+  announceURLs = ["ws://localhost:8085"];
 }
 
 const p2wiki = new P2Wiki(announceURLs);

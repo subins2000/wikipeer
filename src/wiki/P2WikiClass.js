@@ -6,16 +6,10 @@
 
 const axios = require("axios");
 const P2PT = require("p2pt");
+const IPFS = require("ipfs");
 
 const articleApi = require("./api/http-article");
 const generalApi = require("./api/http-general");
-
-let WebTorrent;
-if (typeof window === "undefined") {
-  WebTorrent = require("webtorrent-hybrid");
-} else {
-  WebTorrent = require("webtorrent");
-}
 
 const MD5 = require("md5.js");
 const parallel = require("run-parallel");
@@ -53,7 +47,6 @@ class P2Wiki {
       articles: {}
     };
 
-    this.wt = new WebTorrent();
     this.p2pt = new P2PT(announceURLs, "p2wiki");
   }
 
@@ -492,121 +485,123 @@ class P2Wiki {
     });
   }
 
-  makeArticleTorrent(lang, articleTitle) {
-    return new Promise((resolve, reject) => {
-      if (
-        this.seedingTorrents.articles[lang] &&
-        this.seedingTorrents.articles[lang][articleTitle]
-      ) {
-        resolve(this.seedingTorrents.articles[lang][articleTitle].torrent);
-        return;
-      }
+  async makeArticleTorrent(lang, articleTitle) {
+    /* eslint-disable no-async-promise-executor */
+    return new Promise(async (resolve, reject) => {
+      try {
+        if (
+          this.seedingTorrents.articles[lang] &&
+          this.seedingTorrents.articles[lang][articleTitle]
+        ) {
+          resolve(this.seedingTorrents.articles[lang][articleTitle].torrent);
+          return;
+        }
 
-      // Torrent files
-      const files = [];
+        // Torrent files
+        const files = [];
 
-      const fetchMedia = () => {
-        return new Promise((resolve, reject) => {
-          // Media stats
-          const media = {
-            fetched: 0,
-            total: 0
-          };
+        const fetchMedia = () => {
+          return new Promise((resolve, reject) => {
+            // Media stats
+            const media = {
+              fetched: 0,
+              total: 0
+            };
 
-          articleApi
-            .fetchMedia(lang, articleTitle)
-            .then(response => {
-              for (const item of response.items) {
-                // Skip non-images
-                if (!item.srcset) {
-                  continue;
+            articleApi
+              .fetchMedia(lang, articleTitle)
+              .then(response => {
+                for (const item of response.items) {
+                  // Skip non-images
+                  if (!item.srcset) {
+                    continue;
+                  }
+
+                  this.getFileFromURL(item.title, item.srcset[0].src).then(
+                    file => {
+                      files.push(file);
+                      media.fetched++;
+
+                      debug(
+                        `proxy: Article-${lang} '${articleTitle}': Fetched media ${media.fetched}/${media.total}`
+                      );
+
+                      if (media.fetched === media.total) resolve();
+                    }
+                  );
+
+                  media.total++;
                 }
 
-                this.getFileFromURL(item.title, item.srcset[0].src).then(
-                  file => {
-                    files.push(file);
-                    media.fetched++;
-
-                    debug(
-                      `proxy: Article-${lang} '${articleTitle}': Fetched media ${media.fetched}/${media.total}`
-                    );
-
-                    if (media.fetched === media.total) resolve();
-                  }
+                debug(
+                  `proxy: Article-${lang} '${articleTitle}': Fetched medialist. Has ${media.total} media files`
                 );
-
-                media.total++;
-              }
-
-              debug(
-                `proxy: Article-${lang} '${articleTitle}': Fetched medialist. Has ${media.total} media files`
-              );
-            })
-            .catch(error => {
-              reject(error);
-            });
-        });
-      };
-
-      const fetchArticle = () => {
-        const api = `https://${lang}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(
-          articleTitle
-        )}`;
-        return axios.get(api).then(response => response.data);
-      };
-
-      const fetchRevisions = articleApi.fetchRevisions;
-      const fetchLanguages = articleApi.fetchLanguages;
-
-      Promise.all([
-        fetchArticle(lang, articleTitle),
-        fetchRevisions(lang, articleTitle),
-        fetchLanguages(lang, articleTitle),
-        fetchMedia(lang, articleTitle)
-      ])
-        .then(([articleData, revisions, languages]) => {
-          files.push(this.makeFile("article.txt", JSON.stringify(articleData)));
-          files.push(this.makeFile("revisions.txt", JSON.stringify(revisions)));
-
-          if (languages) {
-            files.push(
-              this.makeFile("languages.txt", JSON.stringify(languages))
-            );
-          }
-
-          this.wt.seed(
-            files,
-            {
-              announceList: [this.announceURLs],
-              name: articleData.lead.normalizedtitle
-            },
-            torrent => {
-              if (!this.seedingTorrents.articles[lang]) {
-                this.seedingTorrents.articles[lang] = {};
-              }
-
-              this.seedingTorrents.articles[lang][articleTitle] = {
-                lastActive: new Date(),
-                torrent
-              };
-
-              torrent.on("upload", () => {
-                this.seedingTorrents.articles[lang][
-                  articleTitle
-                ].lastActive = new Date();
+              })
+              .catch(error => {
+                reject(error);
               });
+          });
+        };
 
-              debug(
-                `proxy: Article-${lang} '${articleTitle}': Seeding at ${torrent.infoHash}`
-              );
+        const fetchArticle = () => {
+          const api = `https://${lang}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(
+            articleTitle
+          )}`;
+          return axios.get(api).then(response => response.data);
+        };
 
-              resolve(torrent);
-            }
-          );
-        })
-        .catch(error => {
-          reject(error);
-        });
+        const fetchRevisions = articleApi.fetchRevisions;
+        const fetchLanguages = articleApi.fetchLanguages;
+
+        const [articleData, revisions, languages, media] = await Promise.all([
+          fetchArticle(lang, articleTitle),
+          fetchRevisions(lang, articleTitle),
+          fetchLanguages(lang, articleTitle),
+          fetchMedia(lang, articleTitle)
+        ]);
+
+        files.push(this.makeFile("article.txt", JSON.stringify(articleData)));
+        files.push(this.makeFile("revisions.txt", JSON.stringify(revisions)));
+
+        if (languages) {
+          files.push(this.makeFile("languages.txt", JSON.stringify(languages)));
+        }
+
+        // const node = await IPFS.create({
+        //   repo: 'wikipeer-' + articleData.lead.normalizedtitle
+        // });
+        console.log(files, media);
+
+        const ipfs = await IPFS.create();
+        await Promise.all(
+          files.map(f => ipfs.files.write("/" + f.name, f, { create: true }))
+        );
+
+        const directoryStatus = await ipfs.files.stat("/");
+        console.log(directoryStatus);
+
+        if (!this.seedingTorrents.articles[lang]) {
+          this.seedingTorrents.articles[lang] = {};
+        }
+
+        this.seedingTorrents.articles[lang][articleTitle] = {
+          lastActive: new Date()
+        };
+
+        // torrent.on("upload", () => {
+        //   this.seedingTorrents.articles[lang][
+        //     articleTitle
+        //   ].lastActive = new Date();
+        // });
+
+        // debug(
+        //   `proxy: Article-${lang} '${articleTitle}': Seeding at ${torrent.infoHash}`
+        // );
+
+        resolve(directoryStatus);
+      } catch (error) {
+        reject(error);
+      }
     });
   }
 
