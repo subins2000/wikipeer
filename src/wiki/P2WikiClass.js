@@ -15,6 +15,8 @@ const MD5 = require("md5.js");
 const parallel = require("run-parallel");
 const debug = require("debug")("p2wiki");
 
+const uint8ArrayConcat = require("uint8arrays/concat");
+
 /**
  * For client peers
  * How many peers should return the same infoHash to start downloading the torrent ?
@@ -76,7 +78,7 @@ class P2Wiki {
 
             this.makeArticleTorrent(msg.lang, msg.title).then(torrent => {
               peer.respond({
-                hash: torrent.infoHash
+                hash: torrent.cid.string
               });
             });
           } else if (type === "search") {
@@ -261,70 +263,55 @@ class P2Wiki {
   }
 
   // Promise: get article
-  fetchArticle(lang, title) {
+  async fetchArticle(lang, title) {
     return new Promise(resolve => {
-      if (
-        this.fetchedContent.articles[lang] &&
-        this.fetchedContent.articles[lang][title]
-      ) {
-        resolve(this.fetchedContent.articles[lang][title]);
-      } else {
-        this.proxySend(
-          {
-            get: "article",
-            lang,
-            title
-          },
-          response => {
-            this.downloadTorrent(response.hash, torrent => {
+      (async () => {
+        if (
+          this.fetchedContent.articles[lang] &&
+          this.fetchedContent.articles[lang][title]
+        ) {
+          resolve(this.fetchedContent.articles[lang][title]);
+        } else {
+          this.proxySend(
+            {
+              get: "article",
+              lang,
+              title
+            },
+            async response => {
+              console.log(response);
+
+              const ipfs = await IPFS.create();
+
               // [articleData, revisions, media, languages]
-              const article = [];
+              const article = [{}, {}, [], {}];
 
-              const getFile = filename => {
-                return new Promise(resolve => {
-                  for (const file of torrent.files) {
-                    if (file.name === filename) {
-                      file.getBuffer((error, buffer) => {
-                        resolve(JSON.parse(buffer.toString()));
-                      });
-                      return;
-                    }
-                  }
-                  // If no file resolve empty
-                  // eg: might be no article in other langs
-                  resolve([]);
-                });
-              };
-
-              Promise.all([
-                getFile("article.txt"),
-                getFile("revisions.txt"),
-                getFile("languages.txt")
-              ]).then(([articleData, revisions, languages]) => {
-                article[0] = articleData;
-                article[1] = revisions;
-
-                // media
-                article[2] = {};
-                torrent.files.forEach(file => {
-                  if (!file.name.endsWith(".txt")) {
-                    article[2][file.name] = file;
-                  }
-                });
-
-                article[3] = languages;
-
-                if (!this.fetchedContent.articles[lang]) {
-                  this.fetchedContent.articles[lang] = {};
+              for await (const file of ipfs.ls(response.hash)) {
+                if (file.name == "article.txt") {
+                  article[0] = await this.readFileFromIPFS(ipfs, file.cid);
+                } else if (file.name === "revisions.txt") {
+                  article[1] = await this.readFileFromIPFS(ipfs, file.cid);
+                } else if (file.name === "languages.txt") {
+                  article[3] = await this.readFileFromIPFS(ipfs, file.cid);
+                } else {
+                  article[2][file.name] = file;
                 }
-                this.fetchedContent.articles[lang][title] = article;
+              }
 
-                resolve(article);
-              });
-            });
-          }
-        );
-      }
+              article[0] = JSON.parse(article[0]);
+              article[1] = JSON.parse(article[1]);
+              article[3] = JSON.parse(article[3]);
+
+              if (!this.fetchedContent.articles[lang]) {
+                this.fetchedContent.articles[lang] = {};
+              }
+              this.fetchedContent.articles[lang][title] = article;
+
+              resolve(article);
+            }
+          );
+        }
+      })();
     });
   }
 
@@ -567,9 +554,6 @@ class P2Wiki {
           files.push(this.makeFile("languages.txt", JSON.stringify(languages)));
         }
 
-        // const node = await IPFS.create({
-        //   repo: 'wikipeer-' + articleData.lead.normalizedtitle
-        // });
         console.log(files, media);
 
         const ipfs = await IPFS.create();
@@ -585,7 +569,8 @@ class P2Wiki {
         }
 
         this.seedingTorrents.articles[lang][articleTitle] = {
-          lastActive: new Date()
+          lastActive: new Date(),
+          torrent: directoryStatus
         };
 
         // torrent.on("upload", () => {
@@ -594,9 +579,9 @@ class P2Wiki {
         //   ].lastActive = new Date();
         // });
 
-        // debug(
-        //   `proxy: Article-${lang} '${articleTitle}': Seeding at ${torrent.infoHash}`
-        // );
+        debug(
+          `proxy: Article-${lang} '${articleTitle}': Seeding at ${directoryStatus.cid.string}`
+        );
 
         resolve(directoryStatus);
       } catch (error) {
@@ -605,18 +590,26 @@ class P2Wiki {
     });
   }
 
-  downloadTorrent(infoHash, onTorrent) {
-    if (this.wt.get(infoHash)) {
-      onTorrent(this.wt.get(infoHash));
-    } else {
-      this.wt.add(
-        infoHash,
-        {
-          announce: this.announceURLs
-        },
-        onTorrent
-      );
+  async readFileFromIPFS(ipfs, path) {
+    const chunks = [];
+    for await (const chunk of ipfs.files.read(path)) {
+      chunks.push(chunk);
     }
+    return new TextDecoder().decode(uint8ArrayConcat(chunks));
+  }
+
+  static async loadImages(articleName, images) {
+    const ipfs = await IPFS.create({ repo: articleName });
+    images.forEach(async item => {
+      const chunks = [];
+      for await (const chunk of ipfs.files.read(item.file.cid)) {
+        chunks.push(chunk);
+      }
+
+      item.elem.src = URL.createObjectURL(
+        new Blob([uint8ArrayConcat(chunks)], { type: "image/png" })
+      );
+    });
   }
 }
 

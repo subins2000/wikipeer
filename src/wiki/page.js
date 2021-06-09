@@ -1,5 +1,8 @@
+import P2Wiki from "./P2WikiClass";
+
 export default {
   replaceImages(media, elem) {
+    const imagesToLoad = [];
     const images = elem.querySelectorAll("a[class='image']");
     for (let i = 0; i < images.length; i++) {
       images[i].addEventListener("click", event =>
@@ -21,17 +24,14 @@ export default {
       images[i].firstChild.srcset = "";
 
       if (media[filename]) {
-        /**
-         * Wikimedia Commons convert SVG to PNG in articles
-         * renderTo function uses extension for detecting file type : https://github.com/feross/render-media/issues/33
-         */
-        if (filename.substr(-4, 4) === ".svg") {
-          media[filename].name += ".png";
-        }
-
-        media[filename].renderTo(images[i].firstChild);
+        imagesToLoad.push({
+          elem: images[i].firstChild,
+          file: media[filename]
+        });
       }
     }
+
+    P2Wiki.loadImages(imagesToLoad);
 
     return elem;
   },

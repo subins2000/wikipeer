@@ -6,7 +6,7 @@
   "scripts": {
     "start": "npm run proxy & npm run serve",
     "proxy": "node start-proxy.js",
-    "serve": "vue-cli-service serve",
+    "serve": "vue-cli-service serve --port 8081",
     "build": "vue-cli-service build",
     "test:unit": "vue-cli-service test:unit",
     "lint": "vue-cli-service lint"
@@ -16,7 +16,7 @@
     "@wikimedia/language-data": "^0.2.2",
     "axios": "^0.20.0",
     "core-js": "^3.6.5",
-    "ipfs": "^0.50.2",
+    "ipfs": "^0.55.3",
     "md5.js": "^1.3.5",
     "p2pt": "1.4.1",
     "prosemirror-history": "^1.1.3",
