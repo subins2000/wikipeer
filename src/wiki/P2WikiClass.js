@@ -30,6 +30,8 @@ const PROXY_TRUST_CONSENSUS_COUNT = 1;
 const TORRENT_REMOVE_TIMEOUT = 2;
 
 class P2Wiki {
+  static ipfs = null;
+
   constructor(announceURLs) {
     this.announceURLs = announceURLs;
 
@@ -50,6 +52,17 @@ class P2Wiki {
     };
 
     this.p2pt = new P2PT(announceURLs, "p2wiki");
+    P2Wiki.getIPFSRepo();
+  }
+
+  static async getIPFSRepo() {
+    if (this.ipfs === null) {
+      const ipfs = await IPFS.create();
+      this.ipfs = ipfs;
+      return this.ipfs;
+    } else {
+      return this.ipfs;
+    }
   }
 
   startProxy() {
@@ -222,7 +235,7 @@ class P2Wiki {
               lang
             },
             async response => {
-              const ipfs = await IPFS.create();
+              const ipfs = await P2Wiki.getIPFSRepo();
 
               // The response emulates the original HTTP API response
               // "p2wiki" is prepended to new elements
@@ -283,26 +296,28 @@ class P2Wiki {
             async response => {
               console.log(response);
 
-              const ipfs = await IPFS.create();
+              const ipfs = await P2Wiki.getIPFSRepo();
 
               // [articleData, revisions, media, languages]
               const article = [{}, {}, [], {}];
 
               for await (const file of ipfs.ls(response.hash)) {
                 if (file.name == "article.txt") {
-                  article[0] = await this.readFileFromIPFS(ipfs, file.cid);
+                  article[0] = JSON.parse(
+                    await this.readFileFromIPFS(ipfs, file.cid)
+                  );
                 } else if (file.name === "revisions.txt") {
-                  article[1] = await this.readFileFromIPFS(ipfs, file.cid);
+                  article[1] = JSON.parse(
+                    await this.readFileFromIPFS(ipfs, file.cid)
+                  );
                 } else if (file.name === "languages.txt") {
-                  article[3] = await this.readFileFromIPFS(ipfs, file.cid);
+                  article[3] = JSON.parse(
+                    await this.readFileFromIPFS(ipfs, file.cid)
+                  );
                 } else {
                   article[2][file.name] = file;
                 }
               }
-
-              article[0] = JSON.parse(article[0]);
-              article[1] = JSON.parse(article[1]);
-              article[3] = JSON.parse(article[3]);
 
               if (!this.fetchedContent.articles[lang]) {
                 this.fetchedContent.articles[lang] = {};
@@ -449,7 +464,7 @@ class P2Wiki {
             if (files.length === neededFileCount) {
               // All files downloaded, make torrent
 
-              const ipfs = await IPFS.create();
+              const ipfs = await P2Wiki.getIPFSRepo();
               await Promise.all(
                 files.map(f =>
                   ipfs.files.write("/" + f.name, f, { create: true })
@@ -561,12 +576,21 @@ class P2Wiki {
 
         console.log(files, media);
 
-        const ipfs = await IPFS.create();
+        const ipfs = await P2Wiki.getIPFSRepo();
+        const dirName = lang + "-" + articleTitle;
+
+        try {
+          await ipfs.files.mkdir("/" + dirName);
+        } catch (err) {
+          // folder may already exist
+        }
         await Promise.all(
-          files.map(f => ipfs.files.write("/" + f.name, f, { create: true }))
+          files.map(f =>
+            ipfs.files.write("/" + dirName + "/" + f.name, f, { create: true })
+          )
         );
 
-        const directoryStatus = await ipfs.files.stat("/");
+        const directoryStatus = await ipfs.files.stat("/" + dirName);
         console.log(directoryStatus);
 
         if (!this.seedingTorrents.articles[lang]) {
@@ -605,7 +629,7 @@ class P2Wiki {
 
   addFileMethods(file, type) {
     file.getBlobURL = async callback => {
-      const ipfs = await IPFS.create({ repo: file.cid });
+      const ipfs = await P2Wiki.getIPFSRepo();
       const chunks = [];
       for await (const chunk of ipfs.files.read(file.cid)) {
         chunks.push(chunk);
@@ -617,8 +641,8 @@ class P2Wiki {
     };
   }
 
-  static async loadImages(articleName, images) {
-    const ipfs = await IPFS.create({ repo: articleName });
+  static async loadImages(images) {
+    const ipfs = await P2Wiki.getIPFSRepo();
     images.forEach(async item => {
       const chunks = [];
       for await (const chunk of ipfs.files.read(item.file.cid)) {
