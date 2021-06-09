@@ -70,7 +70,7 @@ class P2Wiki {
           if (type === "feed") {
             this.makeFeedTorrent(msg.lang).then(torrent => {
               peer.respond({
-                hash: torrent.infoHash
+                hash: torrent.cid.string
               });
             });
           } else if (type === "article") {
@@ -207,21 +207,23 @@ class P2Wiki {
   // Promise: get feed/homepage
   fetchFeed(lang) {
     return new Promise(resolve => {
-      const feedID = this.getTodayDate();
+      (async () => {
+        const feedID = this.getTodayDate();
 
-      if (
-        this.fetchedContent.feed[feedID] &&
-        this.fetchedContent.feed[feedID][lang]
-      ) {
-        resolve(this.fetchedContent.feed[feedID][lang]);
-      } else {
-        this.proxySend(
-          {
-            get: "feed",
-            lang
-          },
-          response => {
-            this.downloadTorrent(response.hash, torrent => {
+        if (
+          this.fetchedContent.feed[feedID] &&
+          this.fetchedContent.feed[feedID][lang]
+        ) {
+          resolve(this.fetchedContent.feed[feedID][lang]);
+        } else {
+          this.proxySend(
+            {
+              get: "feed",
+              lang
+            },
+            async response => {
+              const ipfs = await IPFS.create();
+
               // The response emulates the original HTTP API response
               // "p2wiki" is prepended to new elements
               const feed = {
@@ -238,27 +240,27 @@ class P2Wiki {
                 resolve(feed);
               };
 
-              // file is WebTorrent's File object
-              torrent.files.forEach(file => {
-                if (file.name === "tfa.txt") {
-                  file.getBuffer((error, buffer) => {
-                    feed.tfa = JSON.parse(buffer.toString());
-                    if (feed.mostread.articles) completed();
-                  });
+              for await (const file of ipfs.ls(response.hash)) {
+                if (file.name == "tfa.txt") {
+                  feed.tfa = JSON.parse(
+                    await this.readFileFromIPFS(ipfs, file.cid)
+                  );
+                  if (feed.mostread.articles) completed();
                 } else if (file.name === "mostread.txt") {
-                  file.getBuffer((error, buffer) => {
-                    feed.mostread = JSON.parse(buffer.toString());
-                    if (feed.tfa.title) completed();
-                  });
+                  feed.mostread = JSON.parse(
+                    await this.readFileFromIPFS(ipfs, file.cid)
+                  );
+                  if (feed.tfa.title) completed();
                 } else {
                   // rest is media
+                  this.addFileMethods(file);
                   feed.p2wikiMedia[file.name] = file;
                 }
-              });
-            });
-          }
-        );
-      }
+              }
+            }
+          );
+        }
+      })();
     });
   }
 
@@ -441,30 +443,33 @@ class P2Wiki {
             });
           }
 
-          const ifCompletedMakeTorrent = () => {
+          const ifCompletedMakeTorrent = async () => {
             const neededFileCount = 2 + media.length;
 
             if (files.length === neededFileCount) {
               // All files downloaded, make torrent
-              this.wt.seed(
-                files,
-                {
-                  announceList: [this.announceURLs],
-                  name: "feed"
-                },
-                torrent => {
-                  if (!this.seedingTorrents.feed[feedID]) {
-                    this.seedingTorrents.feed[feedID] = {};
-                  }
-                  this.seedingTorrents.feed[feedID][lang] = torrent;
 
-                  debug(
-                    `proxy: Started seeding feed-${lang} : ${torrent.infoHash}`
-                  );
-
-                  resolve(torrent);
-                }
+              const ipfs = await IPFS.create();
+              await Promise.all(
+                files.map(f =>
+                  ipfs.files.write("/" + f.name, f, { create: true })
+                )
               );
+
+              const directoryStatus = await ipfs.files.stat("/");
+              console.log(directoryStatus);
+
+              if (!this.seedingTorrents.feed[feedID]) {
+                this.seedingTorrents.feed[feedID] = {};
+              }
+
+              this.seedingTorrents.feed[feedID][lang] = directoryStatus;
+
+              debug(
+                `proxy: Started seeding feed-${lang}: ${directoryStatus.cid.string}`
+              );
+
+              resolve(directoryStatus);
             }
           };
         });
@@ -596,6 +601,20 @@ class P2Wiki {
       chunks.push(chunk);
     }
     return new TextDecoder().decode(uint8ArrayConcat(chunks));
+  }
+
+  addFileMethods(file, type) {
+    file.getBlobURL = async callback => {
+      const ipfs = await IPFS.create({ repo: file.cid });
+      const chunks = [];
+      for await (const chunk of ipfs.files.read(file.cid)) {
+        chunks.push(chunk);
+      }
+
+      callback(
+        URL.createObjectURL(new Blob([uint8ArrayConcat(chunks)], { type }))
+      );
+    };
   }
 
   static async loadImages(articleName, images) {

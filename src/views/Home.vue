@@ -110,6 +110,9 @@ export default {
   methods: {
     feed() {
       generalApi.fetchFeed(this.contentLanguage).then(feed => {
+        this.mostreadArticles = feed.mostread.articles;
+        this.tfa = feed.tfa;
+
         for (const filename in feed.p2wikiMedia) {
           const file = feed.p2wikiMedia[filename];
 
@@ -118,11 +121,8 @@ export default {
           this.$set(this.media, filename, "");
           file.getBlobURL((err, url) => {
             this.$set(this.media, filename, url);
-          });
+          }, "image/png");
         }
-
-        this.mostreadArticles = feed.mostread.articles;
-        this.tfa = feed.tfa;
       });
     },
     getFilename(url) {
